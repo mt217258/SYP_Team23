@@ -1,0 +1,2 @@
+pylsl.resolve_streams() #returns list of available streams on network
+stream = pylsl.resolve_streams()[0] #first available stream
