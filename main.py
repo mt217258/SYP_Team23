@@ -1,7 +1,8 @@
 #### LIBRARIES ####
 # OFF THE SHELF #
 import queue
-
+import threading
+import sys
 
 # CUSTOM #
 from backend import BackEnd
@@ -17,6 +18,7 @@ from frontend import FrontEnd
 #### MAIN #### (just for testing independently of everything else)
 def main():
     #TODO - Start OpenSignals with lsl turned on, if possible
+    #TODO - front and back end on different threads
     
     #TODO - verify if correct way to impliment queues
     #see: https://docs.python.org/3/library/queue.html
@@ -30,7 +32,9 @@ def main():
     back.start()
     front.start()
     
-    #TODO - add code to end back & front when GUI is closed
+    #TODO - add code to close back & front when GUI is closed
+    #back.stop()
+    #front.stop()
 
 if __name__ == '__main__':
     main()

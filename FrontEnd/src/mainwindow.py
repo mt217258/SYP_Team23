@@ -1,7 +1,7 @@
 '''
 Author:             Matthew McLaughlin
 Contact:            mt217258@dal.ca
-Description:        PyQT widget for displaying streamed data 
+Description:        
 TODO List:          
 '''
 
