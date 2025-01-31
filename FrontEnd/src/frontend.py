@@ -8,8 +8,6 @@ TODO List:
 #### LIBRARIES ####
 # OFF THE SHELF #
 
-
-
 # CUSTOM #
 from thread_rcvdata import Worker_DAQ
 from widget_datastream import WIDGET_datastream
@@ -19,11 +17,15 @@ from mainwindow import MainWindow
 class FrontEnd():
     #### MAGIC METHODS ####
     def __init__(self):
-        pass
+        self.mainwindow = MainWindow()
     
     #### MANGELED METHODS #### 
     #### MUGGLE METHODS #### 
-
+    def start(self):
+        pass
+    
+    def stop(self):
+        pass
 
 #### MAIN #### (just for testing independently of everything else)
 def main():
