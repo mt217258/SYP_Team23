@@ -52,11 +52,6 @@ class WIDGET_datastream(QtWidgets.QWidget):
     def updateGraph(self, time, data_left, data_right):
         self.plotLeft.setData(time, data_left)
         self.plotRight.setData(time, data_right)
-    
-    #def add_datapoint(self, t, y1, y2):
-    #    new_datapoint = pd.DataFrame(data={"Time":[t], "Y1":[y1], "Y2":[y2]})
-    #    self.data = pd.concat([self.data, new_datapoint], ignore_index=True)
-    #    self.updateGraph()
         
 #### VULGAR METHODS #### (they have no class) 
 def window_data(windowSize, time, data1, data2):

@@ -16,38 +16,10 @@
   <widget class="QWidget" name="centralwidget">
    <layout class="QVBoxLayout" name="verticalLayout">
     <item>
-     <widget class="QTabWidget" name="tabWidget">
-      <property name="currentIndex">
-       <number>0</number>
-      </property>
-      <widget class="QWidget" name="tab">
-       <attribute name="title">
-        <string>Tab 1</string>
-       </attribute>
-       <layout class="QVBoxLayout" name="verticalLayout_2">
-        <item>
-         <widget class="QWidget" name="widget" native="true"/>
-        </item>
-        <item>
-         <widget class="QWidget" name="widget_2" native="true"/>
-        </item>
-        <item>
-         <widget class="QWidget" name="widget_3" native="true"/>
-        </item>
-        <item>
-         <widget class="QWidget" name="widget_4" native="true"/>
-        </item>
-       </layout>
-      </widget>
-      <widget class="QWidget" name="tab_2">
-       <attribute name="title">
-        <string>Tab 2</string>
-       </attribute>
-      </widget>
-     </widget>
+     <widget class="QWidget" name="widget_tabs" native="true"/>
     </item>
     <item>
-     <widget class="QWidget" name="widget_streamcontrols" native="true"/>
+     <widget class="QWidget" name="widget_controls" native="true"/>
     </item>
    </layout>
   </widget>

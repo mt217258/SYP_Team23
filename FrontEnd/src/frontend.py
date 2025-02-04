@@ -22,6 +22,8 @@ class FrontEnd():
         self.q_commands = q_commands
         self.q_data = q_data
         
+        self.load_settings()
+        
         self.mainwindow = MainWindow()
         self.thread_rcvdata = Worker_DAQ(self.q_data)
         
@@ -45,12 +47,15 @@ class FrontEnd():
         for graph in self.mainwindow.listGraphs:
             data_set = graph.selection()
             time, l_data, r_data = self.getData(data_set)
-            graph.plot(time, l_data, r_data)
+            graph.updateGraph(time, l_data, r_data)
     
     def sendCommand(self, command):
         pass
     
     def sendSettings(self):
+        pass
+
+    def load_settings(self):
         pass
 
 #### MAIN #### (just for testing independently of everything else)
