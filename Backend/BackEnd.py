@@ -85,10 +85,10 @@ def main():
     backend = BackEnd(q_settings, q_commands, q_data)
     backend.start()
 
-    for _ in range(10):
+    while True:
         try:
             sample = q_data.get(timeout=2)
-            print("Received: ", sample)
+            #print("Received: ", sample)
         except queue.Empty:
             print("No data received.")
 
