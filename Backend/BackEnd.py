@@ -21,6 +21,7 @@ from pylsl import StreamInlet, resolve_streams
 import xml.etree.ElementTree as ET # Parsing channel data
 import time
 import os
+import keyboard
 # CUSTOM #
 
 #### CLASSES ####
@@ -66,14 +67,17 @@ class BackEnd():
         file_exists = os.path.exists(filename)
 
         with open(filename, mode ="w") as file:
+            writer = None
             while self.running:
                 sample, timestamp = inlet.pull_sample(timeout=0.01)
                 if sample:
                     data_dict = dict(zip(["Time"] + self.channels, [timestamp] + sample))
-
                     df = pd.DataFrame([data_dict])
-
-                    df.to_csv(file, mode='w', header=not file_exists, index = False)
+                    if not file_exists:
+                        writer = df.to_csv(file, mode='w', header=True, index = False)
+                        file_exists = True
+                    else:
+                        df.to_csv(file, mode='w', header=False, index = False)
 
                     self.q_data.put(data_dict) # data to the queue
                     print(f"Data from stream {index}: {data_dict}")
@@ -94,7 +98,8 @@ class BackEnd():
     def stop(self):
         if self.running:
             self.running = False
-            self.stream_thread.join()
+            for thread in self.stream_threads:
+                thread.join()
             print("LSL Stream stopped.")
 
 #### MAIN #### (just for testing independently of everything else)
@@ -113,7 +118,10 @@ def main():
         except queue.Empty:
             print("No data received.")
 
-    backend.stop()
+        if keyboard.is_pressed('ctrl+q'):
+            print("Exiting program gracefully...")
+            backend.stop()
+            break
 
 
 if __name__ == '__main__':
