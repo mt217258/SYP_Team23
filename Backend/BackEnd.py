@@ -37,11 +37,11 @@ class BackEnd():
         self.channels = [] # Channel Labels from XML
     
     #### MANGELED METHODS #### 
-    def _parse_xml(self, xml_string):
+    def _parse_xml(self, xml_string, stream_index):
         root = ET.fromstring(xml_string)
-        self.channels = [channel.find('label').text for channel in root.find(".//channels")]
-        print("I am in parse_xml")
-        print(f"Extracted Channels: {self.channels}")
+        channels = [channel.find('label').text for channel in root.find(".//channels")]
+        self.channels.append(channels)
+        print(f"Extracted Channels {stream_index} - Extracted Channels: {channels}")
     
     def _find_streams(self):
         print("Looking for an OpenSignals stream...")
@@ -51,33 +51,33 @@ class BackEnd():
             print("No OpenSignals stream found.")
             return
 
-        for stream in streams:
+        for index, stream in enumerate(streams):
             inlet = StreamInlet(stream)
             self.inlets.append(inlet)
-            print(f"Stream connected: {stream.name()}")
+            print(f"Stream {index} connected: {stream.name()}")
 
             # Get XML metadata and parse
             xml_string = inlet.info().as_xml()
-            self._parse_xml(xml_string)
+            self._parse_xml(xml_string, index)
 
     def _stream_data(self, inlet, index):
-        print(f"Streaming started for inlet {index}. Press Ctrl+C to stop")
+        print(f"Streaming started for inlet {index}. Press 'ctrl+q' to stop")
 
         filename = f"lsl_data_{index}.csv"
         file_exists = os.path.exists(filename)
 
-        with open(filename, mode ="w") as file:
+        with open(filename, mode ="w", newline="") as file:
             writer = None
             while self.running:
                 sample, timestamp = inlet.pull_sample(timeout=0.01)
                 if sample:
-                    data_dict = dict(zip(["Time"] + self.channels, [timestamp] + sample))
+                    data_dict = dict(zip(["Time"] + self.channels[index], [timestamp] + sample))
                     df = pd.DataFrame([data_dict])
                     if not file_exists:
-                        writer = df.to_csv(file, mode='w', header=True, index = False)
+                        writer = df.to_csv(file, mode='a', header=True, index = False)
                         file_exists = True
                     else:
-                        df.to_csv(file, mode='w', header=False, index = False)
+                        df.to_csv(file, mode='a', header=False, index = False)
 
                     self.q_data.put(data_dict) # data to the queue
                     print(f"Data from stream {index}: {data_dict}")
