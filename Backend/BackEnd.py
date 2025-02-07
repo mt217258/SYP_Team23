@@ -31,8 +31,8 @@ class BackEnd():
         self.q_commands = q_commands
         self.q_data = q_data
         self.running = False
-        self.stream_thread = None # Thread for streaming
-        self.inlet = None
+        self.stream_threads = [] # List of stream threads
+        self.inlets = [] # List of StreamInlet objects
         self.channels = [] # Channel Labels from XML
     
     #### MANGELED METHODS #### 
@@ -42,7 +42,7 @@ class BackEnd():
         print("I am in parse_xml")
         print(f"Extracted Channels: {self.channels}")
     
-    def _find_stream(self):
+    def _find_streams(self):
         print("Looking for an OpenSignals stream...")
         streams = resolve_streams()
         streams = [s for s in streams if s.name() == 'OpenSignals']
@@ -50,23 +50,24 @@ class BackEnd():
             print("No OpenSignals stream found.")
             return
 
-        self.inlet = StreamInlet(streams[0])
-        print("Stream connected!")
+        for stream in streams:
+            inlet = StreamInlet(stream)
+            self.inlets.append(inlet)
+            print(f"Stream connected: {stream.name()}")
 
-        # Get XML metadata and parse
-        xml_string = self.inlet.info().as_xml()
-        self._parse_xml(xml_string)
+            # Get XML metadata and parse
+            xml_string = inlet.info().as_xml()
+            self._parse_xml(xml_string)
 
-    def _stream_data(self):
-        self._find_stream()
-        print("Streaming started. Press Ctrl+C to stop")
+    def _stream_data(self, inlet, index):
+        print(f"Streaming started for inlet {index}. Press Ctrl+C to stop")
 
-        filename = "lsl_data.csv"
+        filename = f"lsl_data_{index}.csv"
         file_exists = os.path.exists(filename)
 
         with open(filename, mode ="w") as file:
             while self.running:
-                sample, timestamp = self.inlet.pull_sample(timeout=0.01)
+                sample, timestamp = inlet.pull_sample(timeout=0.01)
                 if sample:
                     data_dict = dict(zip(["Time"] + self.channels, [timestamp] + sample))
 
@@ -75,14 +76,19 @@ class BackEnd():
                     df.to_csv(file, mode='w', header=not file_exists, index = False)
 
                     self.q_data.put(data_dict) # data to the queue
-                    print(data_dict)
+                    print(f"Data from stream {index}: {data_dict}")
                 time.sleep(0.001)
     #### MUGGLE METHODS #### 
     def start(self):
         if not self.running:
             self.running = True
-            self.stream_thread = threading.Thread(target=self._stream_data, daemon=True)
-            self.stream_thread.start()
+            self.stream_threads = []
+            self._find_streams()
+            for index, inlet in enumerate(self.inlets):
+                stream_thread = threading.Thread(target=self._stream_data, args=(inlet, index), daemon=True)
+                self.stream_threads.append(stream_thread)
+                stream_thread.start()
+
             print("LSL Stream started.")
     
     def stop(self):
