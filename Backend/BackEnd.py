@@ -1,9 +1,13 @@
 '''
 Author:  Will Thornton          
 Contact: wl939708@dal.ca
-Description: Backend program to read data from the Lab Streaming Layer (LSL) to process and place in queue.
+Description: Backend program to read data from the Lab Streaming Layer (LSL) place data in .csv file and process data to place in queue for front end.
 TODO List:   
 
+print data into csv
+Read in more than one channel of data
+filter/process data for queue
+Accept input to alter how processing is done
 Data format: data = pd.DataFrame(data={"Time":[], "sEMG_L":[], "sEMG_R":[]})
        
 '''
@@ -16,6 +20,7 @@ import threading
 from pylsl import StreamInlet, resolve_streams
 import xml.etree.ElementTree as ET # Parsing channel data
 import time
+import os
 # CUSTOM #
 
 #### CLASSES ####
@@ -34,6 +39,7 @@ class BackEnd():
     def _parse_xml(self, xml_string):
         root = ET.fromstring(xml_string)
         self.channels = [channel.find('label').text for channel in root.find(".//channels")]
+        print("I am in parse_xml")
         print(f"Extracted Channels: {self.channels}")
     
     def _find_stream(self):
@@ -55,13 +61,22 @@ class BackEnd():
         self._find_stream()
         print("Streaming started. Press Ctrl+C to stop")
 
-        while self.running:
-            sample, timestamp = self.inlet.pull_sample(timeout=1.0)
-            if sample:
-                data_dict = dict(zip(["Time"] + self.channels, [timestamp] + sample))
-                self.q_data.put(data_dict) # data to the queue
-                print(data_dict)
-            time.sleep(0.001)
+        filename = "lsl_data.csv"
+        file_exists = os.path.exists(filename)
+
+        with open(filename, mode ="w") as file:
+            while self.running:
+                sample, timestamp = self.inlet.pull_sample(timeout=0.01)
+                if sample:
+                    data_dict = dict(zip(["Time"] + self.channels, [timestamp] + sample))
+
+                    df = pd.DataFrame([data_dict])
+
+                    df.to_csv(file, mode='w', header=not file_exists, index = False)
+
+                    self.q_data.put(data_dict) # data to the queue
+                    print(data_dict)
+                time.sleep(0.001)
     #### MUGGLE METHODS #### 
     def start(self):
         if not self.running:
@@ -87,7 +102,7 @@ def main():
 
     while True:
         try:
-            sample = q_data.get(timeout=2)
+            sample = q_data.get(timeout=0.1)
             #print("Received: ", sample)
         except queue.Empty:
             print("No data received.")
