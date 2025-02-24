@@ -30,6 +30,8 @@ class MainWindow(QMainWindow):
       
     #### MANGELED METHODS ####  
     def __initVars(self):
+        #TODO - load settings
+        #TODO - if fail, message, offer option for default values
         self.numTabs = 4
      
     def __linkActions(self):
