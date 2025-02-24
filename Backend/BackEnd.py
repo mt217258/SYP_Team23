@@ -38,10 +38,18 @@ class BackEnd():
         self.channels = [] # Channel Labels from XML
         self.output_filename = output_filename
         self.headers_written = False
+        self.csv_lock = threading.Lock() # Mutex lock for CSV writing
     
     #### MANGELED METHODS #### 
     def _parse_xml(self, xml_string, stream_index):
         root = ET.fromstring(xml_string)
+
+        mac_address = root.find(".//type")
+        if mac_address is not None:
+            print(f"MAC Address for stream {stream_index}: {mac_address.text}")
+        else:
+            print(f"No MAC Address found in stream {stream_index}.")
+
         channels = [channel.find('label').text for channel in root.find(".//channels")]
         self.channels.append(channels)
         print(f"Extracted Channels {stream_index} - Extracted Channels: {channels}")
@@ -82,30 +90,19 @@ class BackEnd():
                 writer.writeheader()
 
             while self.running:
-                result = inlet.pull_chunk(timeout=0.01)
-                if result is None:
+                samples, timestamps = inlet.pull_chunk(timeout=0.001)  # Block until data arrives
+                if not samples or not timestamps:
                     continue
 
-                sample, timestamps = result
-                if not sample or not timestamps:
-                    continue
-
-                if sample:
-                    for sample, timestamp in zip(sample, timestamps):
-                        data_dict = {"Time": timestamp, "nSeq": index}  # Shared fields
-                        for ch, value in zip(self.channels[index], sample):
-                            data_dict[ch] = value  # Correctly map values to respective channels
-
-                        # Ensure missing values are represented as empty fields
-                        for field in all_channels:
-                            if field not in data_dict:
-                                data_dict[field] = ""  
-
+                for sample, timestamp in zip(samples, timestamps):
+                    data_dict = {"Time": timestamp, "nSeq": index}
+                    for ch, value in zip(self.channels[index], sample):
+                        data_dict[ch] = value  
+                    with self.csv_lock:
                         writer.writerow(data_dict)
-                        self.q_data.put(data_dict)
-                        print(f"Data from stream {index}: {data_dict}")
+                    self.q_data.put(data_dict)  
+                    print(f"Data from stream {index}: {data_dict}")
 
-                time.sleep(0.001)
     #### MUGGLE METHODS #### 
     def start(self):
         if not self.running:
