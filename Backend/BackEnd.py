@@ -4,8 +4,6 @@ Contact: wl939708@dal.ca
 Description: Backend program to read data from the Lab Streaming Layer (LSL) place data in .csv file and process data to place in queue for front end.
 TODO List:   
 
-print data into csv, currently putting the data into seperate csv
-Check if I can read four channels of data
 filter/process data for queue
 Accept commands to alter how processing is done
 Data format: data = pd.DataFrame(data={"Time":[], "sEMG_L":[], "sEMG_R":[]})
