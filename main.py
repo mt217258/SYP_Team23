@@ -6,8 +6,8 @@ import sys
 import configparser
 
 # CUSTOM #
-from Backend.BackEnd import BackEnd
-from FrontEnd.frontend import FrontEnd
+from backend import BackEnd
+from frontend import FrontEnd
 
 #### CLASSES ####
     #### MAGIC METHODS ####

@@ -24,10 +24,10 @@ class FrontEnd():
         
         self.load_settings()
         
-        self.mainwindow = MainWindow()
+        self.mainwindow = WINDOW_main()
         self.thread_rcvdata = Worker_DAQ(self.q_data)
         
-        self.mainwindow.show()
+        
         
     #### MANGELED METHODS #### 
     def __windowData(self):
@@ -35,7 +35,7 @@ class FrontEnd():
     
     #### MUGGLE METHODS #### 
     def start(self):
-        pass
+        self.mainwindow.show()
     
     def stop(self):
         pass
