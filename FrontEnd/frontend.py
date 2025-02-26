@@ -10,7 +10,7 @@ TODO List:
 import queue
 import pandas as pd
 # CUSTOM #
-from mainwindow import MainWindow
+from window_main import WINDOW_main
 from thread_rcvdata import Worker_DAQ
 #from widget_datastream import WIDGET_datastream #may not need this here
 
@@ -60,7 +60,13 @@ class FrontEnd():
 
 #### MAIN #### (just for testing independently of everything else)
 def main():
-    pass
+    import sys
+    from PyQt5.QtWidgets import QApplication
+    #TODO - add passing queues
+    app = QApplication(sys.argv)
+    mainwindow = WINDOW_main()
+    mainwindow.show()
+    sys.exit(app.exec()) #program loops forever
 
 if __name__ == '__main__':
     main()

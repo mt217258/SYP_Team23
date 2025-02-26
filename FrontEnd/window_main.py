@@ -11,14 +11,15 @@ import sys
 from PyQt5 import uic
 from PyQt5.QtWidgets import QMainWindow, QApplication, QTabWidget, QWidget, QVBoxLayout
 # CUSTOM #
+#from SYP_Widgets import WIDGET_datastream
 from widget_datastream import WIDGET_datastream
 
 #### CLASSES ####
-class MainWindow(QMainWindow):
+class WINDOW_main(QMainWindow):
     #### MAGIC METHODS ####
     def __init__(self, parent=None):
-        super(MainWindow, self).__init__()
-        uic.loadUi('../ui_files/mainwindow.ui', self)
+        super(WINDOW_main, self).__init__()
+        uic.loadUi('ui_files/mainwindow.ui', self)
         
         self.__initVars()
         
@@ -97,7 +98,7 @@ class Tab(QWidget):
 #### MAIN #### (just for testing independently of everything else)
 def main():
     app = QApplication(sys.argv)
-    mainwindow = MainWindow()
+    mainwindow = WINDOW_main()
     mainwindow.show()
     sys.exit(app.exec()) #program loops forever
 

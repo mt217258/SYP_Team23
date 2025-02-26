@@ -3,11 +3,11 @@
 import queue
 import threading
 import sys
+import configparser
 
 # CUSTOM #
-from backend import BackEnd
-from frontend import FrontEnd
-
+from Backend.BackEnd import BackEnd
+from FrontEnd.frontend import FrontEnd
 
 #### CLASSES ####
     #### MAGIC METHODS ####

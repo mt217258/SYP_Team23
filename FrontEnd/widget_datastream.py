@@ -13,14 +13,25 @@ from pyqtgraph import PlotWidget
 #from PyQt5.QtCore import Qt
 #from PyQt5.QtWidgets import *
 #import pandas as pd
+import os
+
 #### GLOBAL VARIABLES ####
+
 
 #### CLASSES ####
 class WIDGET_datastream(QtWidgets.QWidget):
     #### MAGIC METHODS ####
     def __init__(self, *args, **kwargs):
         super(WIDGET_datastream, self).__init__(*args, **kwargs)
-        uic.loadUi('../ui_files/widget_datastream.ui', self)
+        
+        #path = os.path.abspath(__file__)
+        #dir_path = os.path.dirname(path)
+        dir_path = os.path.dirname(os.path.abspath(__file__))
+        ui_filepath = dir_path + '/ui_files/widget_datastream.ui'
+        uic.loadUi(ui_filepath, self)
+        #uic.loadUi('ui_files/widget_datastream.ui', self)
+        
+        
         self.__linkActions()
         self.__linkWidgets()
         self.__linkWindows()

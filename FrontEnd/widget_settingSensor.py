@@ -15,7 +15,7 @@ class WIDGET_settingSensor(QtWidgets.QWidget):
     #### MAGIC METHODS ####
     def __init__(self, title, MAC, SampleRate, *args, **kwargs):
         super(WIDGET_settingSensor, self).__init__(*args, **kwargs)
-        uic.loadUi('../ui_files/widget_settings_sensors.ui', self)
+        uic.loadUi('ui_files/widget_settings_sensors.ui', self)
         self.args = {"title":title, "MAC":MAC, 'samplerate':SampleRate}
         
         #self.__linkActions()
