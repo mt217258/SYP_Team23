@@ -12,45 +12,53 @@ Data format: data = pd.DataFrame(data={"Time":[], "sEMG_L":[], "sEMG_R":[]})
 # Test push in Will Thornton
 #### LIBRARIES ####
 # OFF THE SHELF #
-import queue
+from logging import Manager
+import multiprocessing
 import pandas as pd
 import threading
 from pylsl import StreamInlet, resolve_streams
+#from consume_lsl import consume_and_write_to_csv
 import xml.etree.ElementTree as ET # Parsing channel data
 import time
 import os
 import keyboard
 import csv
+import queue
+from queue import Empty
+
 # CUSTOM #
 
 #### CLASSES ####
 class BackEnd():
     #### MAGIC METHODS ####
-    def __init__(self, q_settings, q_commands, q_data, output_filename="lsl_data.csv"):
+    def __init__(self, q_settings, q_commands):
         self.q_settings = q_settings
         self.q_commands = q_commands
-        self.q_data = q_data
         self.running = False
         self.stream_threads = [] # List of stream threads
+        self.queue_writer_threads = []
         self.inlets = [] # List of StreamInlet objects
         self.channels = [] # Channel Labels from XML
-        self.output_filename = output_filename
-        self.headers_written = False
-        self.csv_lock = threading.Lock() # Mutex lock for CSV writing
+        self.q_data_per_stream = {}
+        self.mac_addresses = {}
+        self.csv_lock = {} 
     
     #### MANGELED METHODS #### 
     def _parse_xml(self, xml_string, stream_index):
         root = ET.fromstring(xml_string)
 
-        mac_address = root.find(".//type")
-        if mac_address is not None:
-            print(f"MAC Address for stream {stream_index}: {mac_address.text}")
+        mac_element = root.find(".//type")
+        if mac_element is not None:
+            mac_address = mac_element.text.strip().replace(":", "_")
+            self.mac_addresses[stream_index] = mac_address
+            print(f"MAC Address for stream {stream_index}: {mac_address}")
         else:
-            print(f"No MAC Address found in stream {stream_index}.")
+            mac_address = f"stream_{stream_index}"
+            print(f"No MAC Address found in stream {stream_index}, using default name.")
 
         channels = [channel.find('label').text for channel in root.find(".//channels")]
         self.channels.append(channels)
-        print(f"Extracted Channels {stream_index} - Extracted Channels: {channels}")
+        print(f"Extracted Channels {stream_index}: {channels}")
     
     def _find_streams(self):
         print("Looking for an OpenSignals stream...")
@@ -72,74 +80,117 @@ class BackEnd():
     def _stream_data(self, inlet, index):
         print(f"Streaming started for inlet {index}. Press 'ctrl+q' to stop")
 
-        self.output_filename = "lsl_data.csv"  # Single CSV file
-        file_exists = os.path.exists(self.output_filename)
+        mac_address = self.mac_addresses.get(index, f"stream_{index}")
+        filename = f"{mac_address}.csv"
+        file_exists = os.path.exists(filename)
 
-        # Ensure we have all unique headers across streams
-        all_channels = ["Time", "nSeq"]
-        for stream_channels in self.channels:
-            all_channels.extend([ch for ch in stream_channels if ch not in all_channels])
-
-        with open(self.output_filename, mode="a", newline="") as file:
-            writer = csv.DictWriter(file, fieldnames=all_channels)
+        with open(filename, mode="a", newline="") as file:
+            writer = csv.DictWriter(file, fieldnames=["Time"] + self.channels[index])
 
             # Only write header once
             if not file_exists:
                 writer.writeheader()
 
+            all_channels = ["Time"] + self.channels[index]
+            q_data = self.q_data_per_stream[index]
+
             while self.running:
-                samples, timestamps = inlet.pull_chunk(timeout=0.001)  # Block until data arrives
+                samples, timestamps = inlet.pull_chunk(timeout = 0.001)
                 if not samples or not timestamps:
                     continue
 
                 for sample, timestamp in zip(samples, timestamps):
                     data_dict = {"Time": timestamp, "nSeq": index}
                     for ch, value in zip(self.channels[index], sample):
-                        data_dict[ch] = value  
-                    with self.csv_lock:
+                        data_dict[ch] = value
+                    with self.csv_lock[index]:
                         writer.writerow(data_dict)
-                    self.q_data.put(data_dict)  
+
+                    q_data.put(data_dict)
+
                     print(f"Data from stream {index}: {data_dict}")
+
+    def _write_queue_data_to_csv(self, index):
+        filename = f"data_{index}.csv"
+        file_exists = os.path.exists(filename)
+
+        with open(filename, mode="a", newline="") as file:
+            writer = csv.DictWriter(file, fieldnames=["Time"] + self.channels[index])
+
+            if not file_exists:
+                writer.writeheader()
+
+            q_data = self.q_data_per_stream[index]
+            while self.running:
+                try:
+                    data_dict = q_data.get(timeout=0.1)
+                    if data_dict is None:
+                        break
+                    lock = self.csv_lock[index]
+                    with lock:
+                        writer.writerow(data_dict)
+                except Empty:
+                    continue
 
     #### MUGGLE METHODS #### 
     def start(self):
         if not self.running:
-            self.running = True
             self.stream_threads = []
+            self.running = True
             self._find_streams()
+
+            # Start stream threads
             for index, inlet in enumerate(self.inlets):
+                self.q_data_per_stream[index] = queue.Queue()
+                self.csv_lock[index] = threading.Lock()
+
                 stream_thread = threading.Thread(target=self._stream_data, args=(inlet, index), daemon=True)
                 self.stream_threads.append(stream_thread)
                 stream_thread.start()
 
-            print("LSL Stream started.")
+                # Start data writing thread for individual queue data
+                queue_writer_thread = threading.Thread(target=self._write_queue_data_to_csv, args=(index,), daemon=True)
+                self.queue_writer_threads.append(queue_writer_thread)
+                queue_writer_thread.start()
+
+            print("LSL Stream started and data logging in progress.")
+
     
     def stop(self):
         if self.running:
             self.running = False
+            for index in self.q_data_per_stream:
+                self.q_data_per_stream[index].put(None)
             for thread in self.stream_threads:
                 thread.join()
             print("LSL Stream stopped.")
 
 #### MAIN #### (just for testing independently of everything else)
 def main():
-    q_settings = queue.Queue()
-    q_commands = queue.Queue()
-    q_data = queue.Queue()
+    with multiprocessing.Manager() as manager:
+        q_settings = manager.Queue()
+        q_commands = manager.Queue()
 
-    backend = BackEnd(q_settings, q_commands, q_data)
-    backend.start()
+        backend = BackEnd(q_settings, q_commands)
+        backend.start()
 
-    while True:
+        #csv_process = multiprocessing.Process(target=consume_and_write_to_csv, args=(q_data, backend.output_filename_data))
+        #csv_process.start()
+
         try:
-            sample = q_data.get(timeout=0.1)
-        except queue.Empty:
-            print("No data received.")
+            while True:
+                if keyboard.is_pressed('ctrl+q'):
+                    print("Exiting program gracefully...")
+                    break
+        except KeyboardInterrupt:
+            print("KeyboardInterrupt detecte. Stopping processes....")
 
-        if keyboard.is_pressed('ctrl+q'):
-            print("Exiting program gracefully...")
-            backend.stop()
-            break
+        backend.stop()
+
+        #q_data.put(None)
+        #csv_process.join()
+
+        print("Main process exiting after CSV writer finishes.")
 
 
 if __name__ == '__main__':
