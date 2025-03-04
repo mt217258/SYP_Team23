@@ -123,7 +123,7 @@ class BackEnd():
             q_data = self.q_data_per_stream[index]
             while self.running:
                 try:
-                    data_dict = q_data.get(timeout=0.1)
+                    data_dict = q_data.get(timeout=0.01)
                     if data_dict is None:
                         break
                     lock = self.csv_lock[index]
