@@ -8,17 +8,19 @@ TODO List:
 #### LIBRARIES ####
 # OFF THE SHELF #
 from PyQt5 import QtWidgets, uic
-
+import configparser
 # CUSTOM #
-import WIDGET_settingSensor 
+from widget_settingSensor import WIDGET_settingSensor 
+#import WIDGET_settingSensor 
 
 #### CLASSES ####
-class WINDOW_settings(QtWidgets.QWidget):
+class WINDOW_settings(QtWidgets.QDialog):
     #### MAGIC METHODS ####
     def __init__(self, settings, *args, **kwargs):
         super(WINDOW_settings, self).__init__(*args, **kwargs)
-        uic.loadUi('../ui_files/window_settings.ui', self)
+        uic.loadUi('ui_files/window_settings.ui', self)
         
+        self.settings = settings #configParser object
         #self.__linkActions()
         self.__linkWidgets()
         self.__initialize()

@@ -9,15 +9,20 @@ TODO List:
 # OFF THE SHELF #
 import sys
 from PyQt5 import uic
-from PyQt5.QtWidgets import QMainWindow, QApplication, QTabWidget, QWidget, QVBoxLayout
+from PyQt5.QtWidgets import QMainWindow, QApplication, QTabWidget, QWidget, QVBoxLayout, QAction
+import configparser
+
 # CUSTOM #
 #from SYP_Widgets import WIDGET_datastream
 from widget_datastream import WIDGET_datastream
+from widget_controls import WIDGET_controls 
+from window_settings import WINDOW_settings
+from PyQt5.Qt5.qml.Qt.labs import settings
 
 #### CLASSES ####
 class WINDOW_main(QMainWindow):
     #### MAGIC METHODS ####
-    def __init__(self, parent=None):
+    def __init__(self, settings, parent=None):
         super(WINDOW_main, self).__init__()
         uic.loadUi('ui_files/mainwindow.ui', self)
         
@@ -30,28 +35,37 @@ class WINDOW_main(QMainWindow):
         self.__creatView()
       
     #### MANGELED METHODS ####  
+    def __openSettings(self):
+        self.window_settings.open()
+        
     def __initVars(self):
         #TODO - load settings
         #TODO - if fail, message, offer option for default values
         self.numTabs = 4
-     
+        self.settings = settings #configParser object
+        
     def __linkActions(self):
-        pass
+        ### SETTINGS ###
+        self.ActionSettings = self.findChild(QAction, 'actionSettings')
+        self.ActionSettings.triggered.connect(self.__openSettings)
     
     def __linkWidgets(self):
         pass
       
     def __linkWindows(self):
-        pass 
+        self.window_settings = WINDOW_settings(self.settings)
+        #self.window_settings.open() 
         
     def __creatView(self):
         self.widgetMain = QWidget()
         
         self.widget_tabs = Tabs(self.numTabs)
+        self.widget_controls = WIDGET_controls()
         #TODO self.widget_controls = Controls()
     
         self.widgetMain.layout = QVBoxLayout(self) #set layout of view, verticle
         self.widgetMain.layout.addWidget(self.widget_tabs) #add widgets to layout
+        self.widgetMain.layout.addWidget(self.widget_controls)
         #self.widgetMain.layout.addWidget(self.widget_controls)
         self.widgetMain.setLayout(self.widgetMain.layout) #apply layout
         self.setCentralWidget(self.widgetMain) #set main widget as central
@@ -98,7 +112,11 @@ class Tab(QWidget):
 #### MAIN #### (just for testing independently of everything else)
 def main():
     app = QApplication(sys.argv)
-    mainwindow = WINDOW_main()
+    
+    config = configparser.ConfigParser()
+    config.read("config.ini")
+    
+    mainwindow = WINDOW_main(settings=config)
     mainwindow.show()
     sys.exit(app.exec()) #program loops forever
 

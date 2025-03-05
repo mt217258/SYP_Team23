@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>489</width>
-    <height>373</height>
+    <height>472</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -19,7 +19,7 @@
      <widget class="QWidget" name="widget_tabs" native="true"/>
     </item>
     <item>
-     <widget class="QWidget" name="widget_controls" native="true"/>
+     <widget class="WIDGET_controls" name="widget_controls" native="true"/>
     </item>
    </layout>
   </widget>
@@ -101,6 +101,14 @@
    </property>
   </action>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>WIDGET_controls</class>
+   <extends>QWidget</extends>
+   <header location="global">widget_controls</header>
+   <container>1</container>
+  </customwidget>
+ </customwidgets>
  <resources/>
  <connections/>
 </ui>
