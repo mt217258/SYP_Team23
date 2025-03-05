@@ -22,9 +22,12 @@ from PyQt5.Qt5.qml.Qt.labs import settings
 #### CLASSES ####
 class WINDOW_main(QMainWindow):
     #### MAGIC METHODS ####
-    def __init__(self, settings, parent=None):
+    def __init__(self, settings:configparser.ConfigParser, parent=None):
         super(WINDOW_main, self).__init__()
         uic.loadUi('ui_files/mainwindow.ui', self)
+        
+        self.settings = settings #configParser object
+        print("Settings type in main is: " , type(self.settings))
         
         self.__initVars()
         
@@ -42,7 +45,7 @@ class WINDOW_main(QMainWindow):
         #TODO - load settings
         #TODO - if fail, message, offer option for default values
         self.numTabs = 4
-        self.settings = settings #configParser object
+        
         
     def __linkActions(self):
         ### SETTINGS ###

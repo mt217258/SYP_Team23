@@ -19,7 +19,7 @@
      <property name="currentIndex">
       <number>0</number>
      </property>
-     <widget class="QWidget" name="tab">
+     <widget class="QWidget" name="tab_sensors">
       <attribute name="title">
        <string>Sensors</string>
       </attribute>
@@ -38,6 +38,20 @@
             <height>366</height>
            </rect>
           </property>
+          <layout class="QVBoxLayout" name="verticalLayout_3">
+           <item>
+            <widget class="WIDGET_settingSensor" name="L_MuscleBan" native="true"/>
+           </item>
+           <item>
+            <widget class="WIDGET_settingSensor" name="R_MuscleBan" native="true"/>
+           </item>
+           <item>
+            <widget class="WIDGET_settingSensor" name="L_EDA" native="true"/>
+           </item>
+           <item>
+            <widget class="WIDGET_settingSensor" name="R_EDA" native="true"/>
+           </item>
+          </layout>
          </widget>
         </widget>
        </item>
@@ -91,6 +105,14 @@
    </item>
   </layout>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>WIDGET_settingSensor</class>
+   <extends>QWidget</extends>
+   <header location="global">widget_settingSensor</header>
+   <container>1</container>
+  </customwidget>
+ </customwidgets>
  <resources/>
  <connections/>
 </ui>

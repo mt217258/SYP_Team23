@@ -48,7 +48,7 @@
          <item>
           <widget class="QLabel" name="label_2">
            <property name="text">
-            <string>Sample Rate</string>
+            <string>Sample Rate [Hz]</string>
            </property>
           </widget>
          </item>
