@@ -31,22 +31,23 @@ class WIDGET_settingSensor(QtWidgets.QWidget):
         self.groupBox = self.findChild(QtWidgets.QGroupBox, 'groupBox')
         
     def __initialize(self):
-        self.sampleRate.addItems(['1','10','100','1000']) #samp freq to list
+        #self.sampleRate.addItems(['1','10','100','1000']) #samp freq to list
         #self.groupBox.setTitle(self.args["title"])
         #self.setSettings(self.args["MAC"], self.args["samplerate"])
+        pass
     
     #### MUGGLE METHODS #### 
     def getSettings(self): #return settings
         settings = {} #return settings as a dictionary
         settings["MAC"] = self.MAC.text()
-        settings["SampleRate"] = self.sampleRate.currentText()
+        #settings["SampleRate"] = self.sampleRate.currentText()
         return settings
     
-    def setSettings(self, title, MAC, sampleRate):
+    def setSettings(self, title, MAC):#, sampleRate):
         self.groupBox.setTitle(title)
         self.MAC.setText(MAC)
-        index = self.sampleRate.findText(sampleRate)
-        self.sampleRate.setCurrentIndex(index)
+        #index = self.sampleRate.findText(sampleRate)
+        #self.sampleRate.setCurrentIndex(index)
         
     
 #### MAIN #### (just for testing independently of everything else)
@@ -55,7 +56,7 @@ def main():
     app = QtWidgets.QApplication(sys.argv)
     #window = WIDGET_settingSensor(title="L_sEMG", MAC="123", SampleRate="10") # Create an instance of our class
     window = WIDGET_settingSensor() # Create an instance of our class
-    print(window.getSettings()) #test return
+    #print(window.getSettings()) #test return
     window.show()
     sys.exit(app.exec()) #program loops forever
     
