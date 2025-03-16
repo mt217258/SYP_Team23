@@ -21,7 +21,7 @@ class WIDGET_settingSensor(QtWidgets.QWidget):
         
         #self.__linkActions()
         self.__linkWidgets()
-        self.__initialize()
+        #self.__initialize()
         #self.__linkWindows()
         
     #### MANGELED METHODS #### ("private" methods)
@@ -29,14 +29,17 @@ class WIDGET_settingSensor(QtWidgets.QWidget):
         self.MAC = self.findChild(QtWidgets.QLineEdit, 'lineEdit_MAC')
         self.sampleRate = self.findChild(QtWidgets.QComboBox, 'comboBox_sampleRate')
         self.groupBox = self.findChild(QtWidgets.QGroupBox, 'groupBox')
-        
+    '''    
     def __initialize(self):
         #self.sampleRate.addItems(['1','10','100','1000']) #samp freq to list
         #self.groupBox.setTitle(self.args["title"])
         #self.setSettings(self.args["MAC"], self.args["samplerate"])
         pass
-    
+    '''
     #### MUGGLE METHODS #### 
+    def getMAC(self):
+        return self.MAC.text()
+    
     def getSettings(self): #return settings
         settings = {} #return settings as a dictionary
         settings["MAC"] = self.MAC.text()
