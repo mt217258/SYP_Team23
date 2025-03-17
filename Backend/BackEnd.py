@@ -25,6 +25,8 @@ import keyboard
 import csv
 import queue
 from queue import Empty
+import h5py
+import numpy as np
 
 # CUSTOM #
 
@@ -81,18 +83,16 @@ class BackEnd():
         print(f"Streaming started for inlet {index}. Press 'ctrl+q' to stop")
 
         mac_address = self.mac_addresses.get(index, f"stream_{index}")
-        filename = f"{mac_address}.csv"
-        file_exists = os.path.exists(filename)
+        filename = f"{mac_address}.h5"
 
-        with open(filename, mode="a", newline="") as file:
-            writer = csv.DictWriter(file, fieldnames=["Time"] + self.channels[index])
-
-            # Only write header once
-            if not file_exists:
-                writer.writeheader()
+        with h5py.File(filename, "a") as h5file:
+            group = h5file.require_group(f"stream_{index}")
 
             all_channels = ["Time"] + self.channels[index]
             q_data = self.q_data_per_stream[index]
+
+            buffer = []
+            batch_size = 10
 
             while self.running:
                 samples, timestamps = inlet.pull_chunk(timeout = 0.001)
@@ -103,12 +103,30 @@ class BackEnd():
                     data_dict = {"Time": timestamp, "nSeq": index}
                     for ch, value in zip(self.channels[index], sample):
                         data_dict[ch] = value
-                    with self.csv_lock[index]:
-                        writer.writerow(data_dict)
-
+                    
+                    buffer.append(data_dict)
                     q_data.put(data_dict)
 
-                    print(f"Data from stream {index}: {data_dict}")
+                    if len(buffer) >= batch_size:
+                        self._write_to_hdf5(h5file, group, buffer, all_channels)
+                        buffer.clear()
+
+                    #print(f"Data from stream {index}: {data_dict}")
+
+            if buffer:
+                self._write_to_hdf5(h5file, group, buffer, all_channels)
+    
+    def _write_to_hdf5(self, h5file, group, buffer, all_channels):
+        data_array = np.array([[entry[ch] for ch in all_channels] for entry in buffer])
+
+        if "data" in group:
+            dataset = group["data"]
+            dataset.resize((dataset.shape[0] + data_array.shape[0]), axis = 0)
+            dataset[-data_array.shape[0]:] = data_array
+        else:
+            dataset = group.create_dataset("data", data=data_array, maxshape=(None, len(all_channels)), dtype='float64')
+
+        group.attrs["channels"] = all_channels
 
     def _write_queue_data_to_csv(self, index):
         filename = f"data_{index}.csv"
@@ -121,16 +139,26 @@ class BackEnd():
                 writer.writeheader()
 
             q_data = self.q_data_per_stream[index]
+            buffer = []
+            batch_size = 10
+
             while self.running:
                 try:
                     data_dict = q_data.get(timeout=0.01)
                     if data_dict is None:
                         break
-                    lock = self.csv_lock[index]
-                    with lock:
-                        writer.writerow(data_dict)
+
+                    buffer.append(data_dict)
+
+                    if len(buffer) >= batch_size:
+                        writer.writerows(buffer)
+                        buffer.clear()
+
                 except Empty:
                     continue
+
+            if buffer:
+                writer.writerows(buffer)
 
     #### MUGGLE METHODS #### 
     def start(self):
@@ -195,3 +223,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
