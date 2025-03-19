@@ -25,7 +25,7 @@ from common import list_signals
 #### CLASSES ####
 class WIDGET_datastream(QtWidgets.QWidget):
     #### MAGIC METHODS ####
-    def __init__(self, *args, **kwargs):
+    def __init__(self, plot_num, *args, **kwargs):
         super(WIDGET_datastream, self).__init__(*args, **kwargs)
         
         #path = os.path.abspath(__file__)
@@ -34,6 +34,8 @@ class WIDGET_datastream(QtWidgets.QWidget):
         ui_filepath = dir_path + '/ui_files/widget_datastream.ui'
         uic.loadUi(ui_filepath, self)
         #uic.loadUi('ui_files/widget_datastream.ui', self)
+        
+        self.plot_num = plot_num
         
         self.__linkActions()
         self.__linkWidgets()
@@ -78,7 +80,7 @@ class WIDGET_datastream(QtWidgets.QWidget):
 def main():
     import sys
     app = QtWidgets.QApplication(sys.argv)
-    window = WIDGET_datastream() # Create an instance of our class
+    window = WIDGET_datastream(0) # Create an instance of our class
     window.show()
     #window.updateGraph([1], [2], [3])
     sys.exit(app.exec()) #program loops forever

@@ -32,29 +32,59 @@ class WINDOW_main(QMainWindow):
         self.filepath = filepath
         print("Settings type in main is: " , type(self.settings))
         
-        self.__initVars()
+        self.numTabs = 4
         
         self.__linkActions()
         self.__linkWidgets()
         self.__linkWindows()  
       
         self.__creatView()
+        #self.__initViews()
+        self.__loadViews()
       
     #### MANGELED METHODS ####  
     def __openSettings(self):
         self.window_settings.open()
         
-    def __initVars(self):
-        #TODO - load settings
-        #TODO - if fail, message, offer option for default values
-        self.numTabs = 4
+    def __initViews(self):
+        self.__loadViews()
         
+    def __loadViews(self):
+        setting_name_template = "t{tab_num:d}p{plot_num:d}"
+        for tab in self.widget_tabs.list_tabs:
+            for plot in tab.listPlots:
+                tab_num= tab.tab_number + 1 #index starts at 0, names at 1
+                plot_num= plot.plot_num + 1
+                
+                setting_name = setting_name_template.format(tab_num=tab_num,plot_num=plot_num)
+                setting = self.settings['Views'][setting_name]
+                cb_index = plot.combobox.findText(setting)
+                plot.combobox.setCurrentIndex(cb_index)
         
     def __linkActions(self):
         ### SETTINGS ###
         self.ActionSettings = self.findChild(QAction, 'actionSettings')
         self.ActionSettings.triggered.connect(self.__openSettings)
+        
+        self.ActionViews = self.findChild(QAction, 'actionSave_View_Settings')
+        self.ActionViews.triggered.connect(self.__saveViews)
     
+    def __saveViews(self):
+        setting_name_template = "t{tab_num:d}p{plot_num:d}"
+        for tab in self.widget_tabs.list_tabs:
+            for plot in tab.listPlots:
+                tab_num= tab.tab_number + 1 #index starts at 0, names at 1
+                plot_num= plot.plot_num + 1
+                
+                setting_name = setting_name_template.format(tab_num=tab_num,plot_num=plot_num)
+                print(setting_name)
+                self.settings['Views'][setting_name] = plot.combobox.currentText()
+        
+        with open(self.filepath, 'w') as configfile: #write file
+            print("Start: Writing settings to config")
+            self.settings.write(configfile)
+            print("End: Writing settings to config")
+        
     def __linkWidgets(self):
         pass
       
@@ -91,7 +121,7 @@ class Tabs(QTabWidget):
     def __createTabs(self):
         tabname = "View {}"
         for i in range(0, self.numTabs):
-            tab = Tab()
+            tab = Tab(i)
             self.list_tabs.append(tab)
             self.addTab(tab, tabname.format(i+1)) 
             
@@ -99,8 +129,9 @@ class Tabs(QTabWidget):
 
 class Tab(QWidget):
     #### MAGIC METHODS ####
-    def __init__(self, parent=None):
+    def __init__(self, number, parent=None):
         super(QWidget, self).__init__()
+        self.tab_number = number
         self.listPlots = []
         
         self.layout = QVBoxLayout(self)
@@ -110,7 +141,7 @@ class Tab(QWidget):
     #### MANGELED METHODS #### 
     def __create_plots(self):
         for i in range(0,4):
-            self.listPlots.append(WIDGET_datastream())
+            self.listPlots.append(WIDGET_datastream(i))
             self.layout.addWidget(self.listPlots[i])
             
     #### MUGGLE METHODS #### 

@@ -11,6 +11,8 @@ import queue
 import pandas as pd
 import configparser
 from PyQt5 import QtWidgets
+import sys
+#from PyQt5.QtWidgets import QApplication
 
 # CUSTOM #
 from window_main import WINDOW_main
@@ -20,18 +22,24 @@ from thread_rcvdata import Worker_DAQ
 #### CLASSES ####
 class FrontEnd():
     #### MAGIC METHODS ####
-    def __init__(self, q_settings, q_commands, q_data, config):
+    def __init__(self, q_settings, q_commands, q_data, frontend_q, config):
         self.q_settings = q_settings
         self.q_commands = q_commands
         self.q_data = q_data
+        self.frontend_q = frontend_q
         self.settings = config
         
-        self.mainwindow = WINDOW_main()
+        self.mainwindow = WINDOW_main(settings=config, Q_settings=q_settings, filepath="config.ini")
         self.thread_rcvdata = Worker_DAQ(self.q_data)
+        
+        app = QtWidgets.QApplication(sys.argv)
+        #mainwindow = WINDOW_main()
+        #mainwindow.show()
+        sys.exit(app.exec()) #program loops forever
         
     #### MANGELED METHODS #### 
     def __linkWindows(self):
-        
+        pass    
     
     def __linkActions(self):
         pass
@@ -72,8 +80,8 @@ def main():
     from PyQt5.QtWidgets import QApplication
     #TODO - add passing queues
     app = QApplication(sys.argv)
-    mainwindow = WINDOW_main()
-    mainwindow.show()
+    #mainwindow = WINDOW_main()
+    #mainwindow.show()
     sys.exit(app.exec()) #program loops forever
 
 if __name__ == '__main__':

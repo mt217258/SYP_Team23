@@ -4,10 +4,12 @@ import queue
 import threading
 import sys
 import configparser
+import multiprocessing
 
 # CUSTOM #
-from backend import BackEnd
+#from backend import BackEnd
 from frontend import FrontEnd
+from testscripts.dummy_backend import Backend
 
 #### CLASSES ####
     #### MAGIC METHODS ####
