@@ -28,10 +28,12 @@ import csv
 #### CLASSES ####
 class BackEnd():
     #### MAGIC METHODS ####
-    def __init__(self, q_settings, q_commands, q_data, output_filename="lsl_data.csv"):
+    def __init__(self, q_settings, q_commands, q_data, frontend_q, config, output_filename="lsl_data.csv"):
         self.q_settings = q_settings
         self.q_commands = q_commands
         self.q_data = q_data
+        self.frontend_q = frontend_q
+        self.config = config
         self.running = False
         self.stream_threads = [] # List of stream threads
         self.inlets = [] # List of StreamInlet objects
