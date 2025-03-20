@@ -16,26 +16,22 @@ import sys
 
 # CUSTOM #
 from window_main import WINDOW_main
-
 from thread_rcvdata import Worker_DAQ
 
 #### CLASSES ####
 class FrontEnd():
     #### MAGIC METHODS ####
-    def __init__(self, q_settings, q_commands, q_data, frontend_q, config):
+    def __init__(self, q_settings, q_commands, q_data, config):
         self.q_settings = q_settings
         self.q_commands = q_commands
         self.q_data = q_data
-        self.frontend_q = frontend_q
         self.settings = config
         
-        self.mainwindow = WINDOW_main(settings=config, Q_settings=q_settings, filepath="config.ini")
-        self.thread_rcvdata = Worker_DAQ(self.q_data)
+        self.app = QtWidgets.QApplication(sys.argv)
         
-        app = QtWidgets.QApplication(sys.argv)
-        #mainwindow = WINDOW_main()
-        #mainwindow.show()
-        sys.exit(app.exec()) #program loops forever
+        self.mainwindow = WINDOW_main(settings=config, Q_settings=q_settings, filepath="config.ini")
+        print("Here")
+        #self.thread_rcvdata = Worker_DAQ(self.q_data) TODO - get working
         
     #### MANGELED METHODS #### 
     def __linkWindows(self):
@@ -52,6 +48,7 @@ class FrontEnd():
     #### MUGGLE METHODS #### 
     def start(self):
         self.mainwindow.show()
+        sys.exit(self.app.exec()) #program loops forever
     
     def stop(self):
         pass
@@ -76,13 +73,16 @@ class FrontEnd():
 
 #### MAIN #### (just for testing independently of everything else)
 def main():
-    import sys
-    from PyQt5.QtWidgets import QApplication
-    #TODO - add passing queues
-    app = QApplication(sys.argv)
-    #mainwindow = WINDOW_main()
-    #mainwindow.show()
-    sys.exit(app.exec()) #program loops forever
+    q_settings = queue.Queue()
+    q_commands = queue.Queue()
+    q_data = queue.Queue()
+    
+    config = configparser.ConfigParser()
+    config.read("config.ini")
+    
+    front = FrontEnd(q_settings, q_commands, q_data, config)
+    front.start()
+    
 
 if __name__ == '__main__':
     main()
