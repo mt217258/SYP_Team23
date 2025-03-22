@@ -17,6 +17,7 @@ import sys
 # CUSTOM #
 from window_main import WINDOW_main
 from thread_rcvdata import Worker_DAQ
+from common import dataselectmapping, data
 
 #### CLASSES ####
 class FrontEnd():
@@ -28,6 +29,7 @@ class FrontEnd():
         self.settings = config
         
         self.app = QtWidgets.QApplication(sys.argv)
+        self.data = data  
         
         self.mainwindow = WINDOW_main(settings=config, Q_settings=q_settings, filepath="config.ini")
         print("Here")
@@ -57,11 +59,13 @@ class FrontEnd():
         pass
     
     def updateGraphs(self):
-        for graph in self.mainwindow.listGraphs:
-            data_set = graph.selection()
-            time, l_data, r_data = self.getData(data_set)
-            graph.updateGraph(time, l_data, r_data)
-    
+        currentTabview = self.mainwindow.widget_tabs.currentIndex() #grab index of tab in view
+        currentTab = self.mainwindow.widget_tabs.currentWidget(currentTabview)  #grab that tab
+        for plot in currentTab.list_Plots: #for the plots within current tab
+            data2plot = plot.combobox.currentText() #what should this graph show
+            left_data, right_data = dataselectmapping[data2plot]
+            plot.updateGraph(self.data["Time"], self.data[left_data], self.data[right_data])
+        
     def sendCommand(self, command):
         pass
     
