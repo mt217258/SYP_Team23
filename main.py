@@ -24,15 +24,13 @@ def main():
 
     # Initialize backend and frontend
     backend = BackEnd(q_settings, q_commands, q_data, config)
-    #frontend = FrontEnd(q_settings, q_commands, q_data, frontend_q, config)
+    #frontend = FrontEnd(q_settings, q_commands, q_data, config)
 
     # Create processes for backend and frontend
-    #backend_process = multiprocessing.Process(target=backend.start)
     #frontend_process = multiprocessing.Process(target=frontend.start)
-    backend.start()
-    #frontend.start()
+
     # Start processes
-    #backend_process.start()
+    backend.start()
     #frontend_process.start()
     try:
         while True:
