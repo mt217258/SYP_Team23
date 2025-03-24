@@ -12,6 +12,9 @@ import pandas as pd
 import configparser
 from PyQt5 import QtWidgets
 import sys
+
+import multiprocessing
+from PyQt5.QtCore import QObject, QThread, pyqtSignal
 #from PyQt5.QtWidgets import QApplication
 
 # CUSTOM #
@@ -32,18 +35,37 @@ class FrontEnd():
         self.data = data  
         
         self.mainwindow = WINDOW_main(settings=config, Q_settings=q_settings, filepath="config.ini")
-        print("Here")
-        #self.thread_rcvdata = Worker_DAQ(self.q_data) TODO - get working
+        self.__linkThreads()
+        #self.thread_rcvdata = Worker_DAQ(self.q_data) #TODO - get working
         
-    #### MANGELED METHODS #### 
+    #### MANGELED METHODS ####
+    def __getData(self, sample):
+        self.data = pd.concat([self.data, sample])
+        #TODO - downsample data
+        self.updateGraphs()
+    
+    def __linkThreads(self):
+        self.thread_DAQ = QThread() #create thread
+        self.worker_DAQ = Worker_DAQ(self.q_data) #create object to run in thread
+        self.worker_DAQ.moveToThread(self.thread_DAQ) #move object to thread
+        
+        self.thread_DAQ.started.connect(self.worker_DAQ.run) #when thread started, run worker's run()
+        #self.thread_DAQ.started.connect(self.worker_DAQ.test_run)
+        
+        #self.worker.finished.connect(self.thread.quit)
+        #self.worker.finished.connect(self.worker.deleteLater)
+        #self.thread.finished.connect(self.thread.deleteLater)
+        self.worker_DAQ.sendData.connect(self.__getData) #link pyqt signals
+        
+        #TODO: move start thread to when stream starts, not on program start
+        self.thread_DAQ.start()
+     
     def __linkWindows(self):
         pass    
     
     def __linkActions(self):
         pass
         
-
-    
     def __windowData(self):
         pass
     
@@ -59,11 +81,14 @@ class FrontEnd():
         pass
     
     def updateGraphs(self):
-        currentTabview = self.mainwindow.widget_tabs.currentIndex() #grab index of tab in view
-        currentTab = self.mainwindow.widget_tabs.currentWidget(currentTabview)  #grab that tab
-        for plot in currentTab.list_Plots: #for the plots within current tab
+        #TODO - window data
+        
+        #currentTabview = self.mainwindow.widget_tabs.currentIndex() #grab index of tab in view
+        currentTab = self.mainwindow.widget_tabs.currentWidget()  #grab that tab
+        for plot in currentTab.listPlots: #for the plots within current tab
             data2plot = plot.combobox.currentText() #what should this graph show
             left_data, right_data = dataselectmapping[data2plot]
+            #print(left_data, self.data[left_data])
             plot.updateGraph(self.data["Time"], self.data[left_data], self.data[right_data])
         
     def sendCommand(self, command):
@@ -77,9 +102,9 @@ class FrontEnd():
 
 #### MAIN #### (just for testing independently of everything else)
 def main():
-    q_settings = queue.Queue()
-    q_commands = queue.Queue()
-    q_data = queue.Queue()
+    q_settings = multiprocessing.Queue()
+    q_commands = multiprocessing.Queue()
+    q_data = multiprocessing.Queue()
     
     config = configparser.ConfigParser()
     config.read("config.ini")

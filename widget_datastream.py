@@ -10,7 +10,7 @@ TODO List:
 #from pylsl import StreamInlet, resolve_streams
 #from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5 import QtWidgets, uic
-from pyqtgraph import PlotWidget
+from pyqtgraph import PlotWidget, mkPen
 #from PyQt5.QtCore import Qt
 #from PyQt5.QtWidgets import *
 #import pandas as pd
@@ -63,12 +63,19 @@ class WIDGET_datastream(QtWidgets.QWidget):
         self.combobox.addItems(list_signals)
     
     def init_graph(self):
-        self.plotLeft = self.plot_graph.plot([0],[0], name="Left Data", symbol='+', symbolSize=15)
-        self.plotRight = self.plot_graph.plot([0],[0], name="Right Data", symbol='x', symbolSize=15)
+        self.plot_graph.setLabel("bottom", "Time [s]")
+        self.plot_graph.addLegend()
+    
+        penL = mkPen(color=(255, 0, 0))
+        penR = mkPen(color=(0, 0, 255))
+        self.plotLeft = self.plot_graph.plot([0],[0], name="Left", pen=penL)
+        self.plotRight = self.plot_graph.plot([0],[0], name="Right", pen=penR)
+        
     
     def updateGraph(self, time, data_left, data_right):
-        self.plotLeft.setData(time, data_left)
-        self.plotRight.setData(time, data_right)
+        self.plotLeft.setData(list(time), list(data_left))
+        self.plotRight.setData(list(time), list(data_right))
+        #NOTE - Error when lists are empty, might be ignorable
         
 #### VULGAR METHODS #### (they have no class) 
 #TODO Will implement in frontend

@@ -30,7 +30,7 @@ class WINDOW_main(QMainWindow):
         self.settings = settings #configParser object
         self.q_settings = Q_settings
         self.filepath = filepath
-        print("Settings type in main is: " , type(self.settings))
+        #print("Settings type in main is: " , type(self.settings))
         
         self.numTabs = 4
         
