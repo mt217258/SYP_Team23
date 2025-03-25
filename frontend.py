@@ -31,11 +31,15 @@ class FrontEnd():
         self.q_data = q_data
         self.settings = config
         
+        self.mode = "Pause"
+        
         self.app = QtWidgets.QApplication(sys.argv)
         self.data = data  
         
         self.mainwindow = WINDOW_main(settings=config, Q_settings=q_settings, filepath="config.ini")
         self.__linkThreads()
+        
+        
         #self.thread_rcvdata = Worker_DAQ(self.q_data) #TODO - get working
         
     #### MANGELED METHODS ####
@@ -111,7 +115,6 @@ def main():
     
     front = FrontEnd(q_settings, q_commands, q_data, config)
     front.start()
-    
 
 if __name__ == '__main__':
     main()

@@ -11,7 +11,7 @@ import pandas as pd
 import math
 import time
 import multiprocessing
-from common import data
+#from common import data
 
 #### CLASSES ####
 class Worker_DAQ(QObject):
@@ -58,7 +58,7 @@ class Worker_DAQ(QObject):
             
             #self.sendData.emit()
             #print(self.data)
-            time.sleep(2)
+            time.sleep(0.25)
         
     def windowData(self):
         if len(self.data > self.num_samples_window):

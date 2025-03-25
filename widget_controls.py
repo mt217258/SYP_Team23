@@ -10,7 +10,10 @@ TODO List:
 from PyQt5 import QtWidgets
 from PyQt5.Qt import QPushButton
 from PyQt5.QtGui import QIcon
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, pyqtSignal
+
+from tkinter.filedialog import asksaveasfile
+from tkinter import messagebox
 
 #from PyQt5.QtCore.Qt import Horizontal
 
@@ -18,15 +21,19 @@ from PyQt5.QtCore import Qt
 
 #### CLASSES ####
 class WIDGET_controls(QtWidgets.QWidget):
+    signal_mode = pyqtSignal(str)
+    signal_timeframe = pyqtSignal(float)
+    signal_offset = pyqtSignal(float)
     #### MAGIC METHODS ####
     def __init__(self, *args, **kwargs):
         super(WIDGET_controls, self).__init__(*args, **kwargs)
         self.__createButtons()
-        #uic.loadUi('../ui_files/widget_streamcontrols.ui', self)
-        #self.__linkActions()
-        #self.__linkWidgets()
-        #self.__linkWindows()
-        self.mode = "Standby"
+
+        self.mode = "Stop"
+        self.in_session = False
+        self.window_widths = [30,60,120,480] #number of minutes to be in frame
+        self.window_width = self.window_widths[0] #default 30 minutes
+        self.window_offset = int(0) #% of data not in frame, 0:100 ints as percent
         
     #### MANGELED METHODS #### ("private" methods)
     def __createButtons(self):
@@ -37,8 +44,6 @@ class WIDGET_controls(QtWidgets.QWidget):
         self.button_prev.setFixedWidth(50)
         self.button_prev.clicked.connect(self.__prev)
         self.button_prev.setIcon(QIcon('./icons/icon_prev.png'))
-        
-        
         self.layout.addWidget(self.button_prev)
         
         self.button_rewind = QPushButton("", self)
@@ -49,6 +54,9 @@ class WIDGET_controls(QtWidgets.QWidget):
     
         self.scrollbar = QtWidgets.QScrollBar()
         self.scrollbar.setOrientation(Qt.Horizontal)
+        self.scrollbar.setMinimum(int(0))
+        self.scrollbar.setMaximum(int(100))
+        self.scrollbar.setValue(int(100))
         self.layout.addWidget(self.scrollbar)
     
         self.button_ff = QPushButton("", self)
@@ -87,32 +95,105 @@ class WIDGET_controls(QtWidgets.QWidget):
         self.button_recstop.setIcon(QIcon('./icons/icon_record.png'))
         self.layout.addWidget(self.button_recstop)
     
-    def __zoomout(self):
-        pass
-    
     def __recstop(self):
-        pass
-    
+        match self.mode:
+            case "Record": #switch to Stop
+                response = messagebox.askyesno('End Stream', "Are you sure you want to end the stream?")
+                if response: #returns true if "yes"
+                    self.mode = "Stop"
+                    self.in_session = False
+                    self.button_recstop.setIcon(QIcon('./icons/icon_record.png'))
+                else:
+                    pass
+                
+            case "Stop" | "Play" | "Pause": #switch to record
+                files = [('H5','.h5')]
+                filename = ""
+                while filename == "": #check if no file name given
+                    filename = asksaveasfile(defaultextension=files, filetypes=files)
+                if type(filename) == type(None):
+                    print("Didn't pass, canceled")
+                elif filename.name.endswith(".h5"):
+                    print("Passed check")
+                    self.mode = "Record"
+                    self.in_session = True
+                    self.button_recstop.setIcon(QIcon('./icons/icon_stop.png'))
+                    self.button_playpause.setIcon(QIcon('./icons/icon_pause.png'))
+                    self.signal_mode.emit("Record:{file}".format(file=filename.name))
+                else:
+                    print("Didn't pass, bad name")
+                    pass
+                
+        print(self.mode)
+                    
     def __playpause(self):
-        pass
+        match self.mode:
+            case "Play" | "Record": #switch to pause
+                self.mode = "Pause"
+                self.button_playpause.setIcon(QIcon('./icons/icon_play.png'))
+                self.signal_mode.emit("Pause")
+            case "Pause" | "Stop": #switch to play
+                self.mode = "Play"
+                self.button_playpause.setIcon(QIcon('./icons/icon_pause.png'))
+                self.signal_mode.emit("Play") 
+                self.window_offset = 0
+                self.signal_offset.emit(self.window_offset)
+                self.scrollbar.setValue(100 - self.window_offset)
+        print(self.mode)           
     
     def __zoomin(self):
-        pass
-    
-    def __ff(self):
-        pass
+        index = self.window_widths.index(self.window_width)
+        
+        if index > 0:
+            self.window_width = self.window_widths[index-1]
+            self.signal_timeframe.emit(self.window_width)
+        else:
+            pass
+        
+        print(self.window_width)
+        
+    def __zoomout(self):
+        index = self.window_widths.index(self.window_width)
+        
+        if index < (len(self.window_widths)-1):
+            self.window_width = self.window_widths[index+1]
+            self.signal_timeframe.emit(self.window_width)
+        else:
+            pass
+        
+        print(self.window_width)
     
     def __prev(self):
-        pass
+        self.window_offset = self.window_offset + 10
+        if self.window_offset > 100:
+            self.window_offset = 100
+        self.signal_offset.emit(self.window_offset)
+        self.scrollbar.setValue(100 - self.window_offset)
+        print(self.window_offset)
     
     def __rewind(self):
-        pass
-    
-    def __zoomIn(self):
-        pass
+        self.window_offset = self.window_offset + 5
+        if self.window_offset > 100:
+            self.window_offset = 100
+        self.signal_offset.emit(self.window_offset)
+        self.scrollbar.setValue(100 - self.window_offset)
+        print(self.window_offset)
     
     def __next(self):
-        pass
+        self.window_offset = self.window_offset - 5
+        if self.window_offset < 0:
+            self.window_offset = 0
+        self.signal_offset.emit(self.window_offset)
+        self.scrollbar.setValue(100 - self.window_offset)
+        print(self.window_offset)
+    
+    def __ff(self):
+        self.window_offset = self.window_offset - 10
+        if self.window_offset < 0:
+            self.window_offset = 0
+        self.signal_offset.emit(self.window_offset)
+        self.scrollbar.setValue(100 - self.window_offset)
+        print(self.window_offset)
     
 #### MAIN #### (just for testing independently of everything else)
 def main():
