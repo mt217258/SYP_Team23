@@ -27,7 +27,6 @@ class BackEnd():
         self.stream_threads = []  # List of stream threads
         self.inlets = []  # List of StreamInlet objects
         self.channels = []  # Channel Labels from XML
-        self.q_data_per_stream = {}  # Queues for each stream
 
     #### MANGELED METHODS ####
     def _parse_xml(self, xml_string, stream_index):
@@ -127,7 +126,7 @@ class BackEnd():
                         data_dict[ch] = value
 
                     # Send data to the frontend queue
-                    self.q_data.put(data_dict)
+                    #self.q_data.put(data_dict)
 
                     # Send data to the data queue (if needed)
                     self.thread_queues[index].put(data_dict)
@@ -142,22 +141,70 @@ class BackEnd():
                 self._write_to_hdf5(h5file, group, buffer, all_channels)
 
     def _write_to_hdf5(self, h5file, group, buffer, all_channels):
-        data_array = np.array([[entry[ch] for ch in all_channels] for entry in buffer])
+        #"""Safe HDF5 writing with proper error handling"""
+        try:
+            # Filter out None or invalid entries
+            valid_entries = [entry for entry in buffer if isinstance(entry, dict)]
+        
+            if not valid_entries:
+                print("Warning: Empty buffer or invalid entries")
+                return
 
-        if "data" in group:
-            dataset = group["data"]
-            dataset.resize((dataset.shape[0] + data_array.shape[0]), axis=0)
-            dataset[-data_array.shape[0]:] = data_array
-        else:
-            dataset = group.create_dataset("data", data=data_array, maxshape=(None, len(all_channels)), dtype='float64')
+            # Get actual available channels
+            available_channels = set()
+            for entry in valid_entries:
+                available_channels.update(entry.keys())
+        
+            # Use only channels that exist in all entries
+            common_channels = [ch for ch in all_channels if ch in available_channels]
+        
+            if not common_channels:
+                print("Warning: No common channels found in buffer entries")
+                return
 
-        group.attrs["channels"] = all_channels
+            # Create data array only with available channels
+            data_list = []
+            for entry in valid_entries:
+                row = []
+                for ch in common_channels:
+                    try:
+                        row.append(float(entry.get(ch, np.nan)))
+                    except (ValueError, TypeError):
+                        row.append(np.nan)
+                data_list.append(row)
+        
+            data_array = np.array(data_list)
+        
+            # Write to HDF5
+            if "data" not in group:
+                # Create dataset if it doesn't exist
+                maxshape = (None, len(common_channels))
+                group.create_dataset("data", data=data_array, maxshape=maxshape)
+                group.attrs["channels"] = common_channels
+            else:
+                # Append to existing dataset
+                dataset = group["data"]
+            
+                # Resize if needed
+                if dataset.shape[1] != len(common_channels):
+                    print(f"Warning: Channel count mismatch ({dataset.shape[1]} vs {len(common_channels)})")
+                    return
+            
+                # Append data
+                old_size = dataset.shape[0]
+                new_size = old_size + len(data_array)
+                dataset.resize((new_size, dataset.shape[1]))
+                dataset[old_size:new_size] = data_array
+            
+        except Exception as e:
+            print(f"Error in _write_to_hdf5: {str(e)}")
+            raise
 
     def _aggregate_data(self):
         print("Starting data aggregation...")
         while self.running:
             if all(not q.empty() for q in self.thread_queues):
-                combined_data = [q.get() for q in self.thread_queues]
+                combined_data = [q.get(timeout=0.1) for q in self.thread_queues]
                 flattened_data = {}
                 for i, data_dic in enumerate(combined_data):
                     if i > 0 and 'Time' in data_dic:
@@ -186,9 +233,9 @@ class BackEnd():
 
                 # Create DataFrame with a single row
                 df = pd.DataFrame([flattened_data])
-                print(f"Aggregated DataFrame Backend:\n{df}\n")
+                #print(f"Aggregated DataFrame Backend:\n{df}\n")
                 self.q_data.put(df)
-            time.sleep(1.0)
+            #time.sleep(1.0)
 
     #### MUGGLE METHODS ####
     def start(self):
@@ -200,7 +247,6 @@ class BackEnd():
 
             # Start stream threads
             for index, inlet in enumerate(self.inlets):
-                self.q_data_per_stream[index] = queue.Queue()
 
                 stream_thread = threading.Thread(target=self._stream_data, args=(inlet, index), daemon=True)
                 self.stream_threads.append(stream_thread)
@@ -212,8 +258,6 @@ class BackEnd():
     def stop(self):
         if self.running:
             self.running = False
-            for index in self.q_data_per_stream:
-                self.q_data_per_stream[index].put(None)
             for thread in self.stream_threads:
                 thread.join()
             print("LSL Stream stopped.")
