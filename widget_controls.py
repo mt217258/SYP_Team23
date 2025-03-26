@@ -14,6 +14,7 @@ from PyQt5.QtCore import Qt, pyqtSignal
 
 from tkinter.filedialog import asksaveasfile
 from tkinter import messagebox
+#from future.backports.test.pystone import FALSE
 
 #from PyQt5.QtCore.Qt import Horizontal
 
@@ -21,16 +22,21 @@ from tkinter import messagebox
 
 #### CLASSES ####
 class WIDGET_controls(QtWidgets.QWidget):
-    signal_mode = pyqtSignal(str)
-    signal_timeframe = pyqtSignal(float)
-    signal_offset = pyqtSignal(float)
+    #### SIGNALS ####
+    signal_streaming = pyqtSignal(bool)
+    signal_recording = pyqtSignal(bool)
+    signal_width = pyqtSignal(int)
+    signal_offset = pyqtSignal(int)
+    signal_recordname = pyqtSignal(str)
+    
     #### MAGIC METHODS ####
     def __init__(self, *args, **kwargs):
         super(WIDGET_controls, self).__init__(*args, **kwargs)
         self.__createButtons()
 
-        self.mode = "Stop"
-        self.in_session = False
+        self.isStreaming = False
+        self.isRecording = False
+        
         self.window_widths = [30,60,120,480] #number of minutes to be in frame
         self.window_width = self.window_widths[0] #default 30 minutes
         self.window_offset = int(0) #% of data not in frame, 0:100 ints as percent
@@ -57,6 +63,7 @@ class WIDGET_controls(QtWidgets.QWidget):
         self.scrollbar.setMinimum(int(0))
         self.scrollbar.setMaximum(int(100))
         self.scrollbar.setValue(int(100))
+        self.scrollbar.sliderReleased.connect(self.__scrollBarUpdate)
         self.layout.addWidget(self.scrollbar)
     
         self.button_ff = QPushButton("", self)
@@ -95,52 +102,80 @@ class WIDGET_controls(QtWidgets.QWidget):
         self.button_recstop.setIcon(QIcon('./icons/icon_record.png'))
         self.layout.addWidget(self.button_recstop)
     
+    def __StreamingOn(self):
+        print("Streaming on")
+        self.isStreaming = True
+        self.window_offset = 0
+        
+        self.signal_streaming.emit(True)
+        self.signal_offset.emit(self.window_offset)
+        
+        self.scrollbar.setValue(100 - self.window_offset)
+        self.button_playpause.setIcon(QIcon('./icons/icon_pause.png'))
+    
+    def __StreamingOff(self):
+        print("Streaming off")
+        self.isStreaming = False
+        
+        self.signal_streaming.emit(False)
+        self.signal_offset.emit(self.window_offset)
+        
+        self.button_playpause.setIcon(QIcon('./icons/icon_play.png'))
+        
+    def __RecordingOn(self, filename):
+        print("Recording on")
+                    
+        self.isRecording = True
+        self.signal_recording.emit(True)
+     
+        self.button_recstop.setIcon(QIcon('./icons/icon_stop.png'))
+        self.button_playpause.setIcon(QIcon('./icons/icon_pause.png'))
+        print(type(filename.name), filename.name)
+        self.signal_recordname.emit(filename.name)
+        
+    def __RecordingOff(self):
+        print("Ending recording")
+        self.isRecording = False
+        self.signal_recording.emit(False)
+        self.button_recstop.setIcon(QIcon('./icons/icon_record.png'))
+        self.__StreamingOff()
+    
+    def __scrollBarUpdate(self):
+        self.window_offset = 100 -  self.scrollbar.value()
+        if self.isStreaming:
+            self.__StreamingOff()
+        else:
+            self.signal_offset.emit(self.window_offset)
+        print(self.window_offset)
+    
     def __recstop(self):
-        match self.mode:
-            case "Record": #switch to Stop
-                response = messagebox.askyesno('End Stream', "Are you sure you want to end the stream?")
-                if response: #returns true if "yes"
-                    self.mode = "Stop"
-                    self.in_session = False
-                    self.button_recstop.setIcon(QIcon('./icons/icon_record.png'))
-                else:
-                    pass
-                
-            case "Stop" | "Play" | "Pause": #switch to record
-                files = [('H5','.h5')]
-                filename = ""
-                while filename == "": #check if no file name given
-                    filename = asksaveasfile(defaultextension=files, filetypes=files)
+        print("Pressed rec", self.isRecording)
+        if self.isRecording: #check to end recording  
+            response = messagebox.askyesno('End Stream', "Are you sure you want to end the stream?")
+            if response: #returns true if "yes"
+                print("Off")
+                self.__RecordingOff()
+            else:
+                print("Cancled ending recording")
+                pass
+        else:
+            files = [('H5','.h5')]
+            filename = ""
+            while filename == "": #check if no file name given
+                filename = asksaveasfile(defaultextension=files, filetypes=files)
                 if type(filename) == type(None):
                     print("Didn't pass, canceled")
-                elif filename.name.endswith(".h5"):
-                    print("Passed check")
-                    self.mode = "Record"
-                    self.in_session = True
-                    self.button_recstop.setIcon(QIcon('./icons/icon_stop.png'))
-                    self.button_playpause.setIcon(QIcon('./icons/icon_pause.png'))
-                    self.signal_mode.emit("Record:{file}".format(file=filename.name))
+                elif filename.name.endswith(".h5"):    
+                    self.__RecordingOn(filename)
                 else:
                     print("Didn't pass, bad name")
-                    pass
-                
-        print(self.mode)
-                    
+                  
     def __playpause(self):
-        match self.mode:
-            case "Play" | "Record": #switch to pause
-                self.mode = "Pause"
-                self.button_playpause.setIcon(QIcon('./icons/icon_play.png'))
-                self.signal_mode.emit("Pause")
-            case "Pause" | "Stop": #switch to play
-                self.mode = "Play"
-                self.button_playpause.setIcon(QIcon('./icons/icon_pause.png'))
-                self.signal_mode.emit("Play") 
-                self.window_offset = 0
-                self.signal_offset.emit(self.window_offset)
-                self.scrollbar.setValue(100 - self.window_offset)
-        print(self.mode)           
-    
+        if self.isStreaming:
+            self.__StreamingOff()
+        else:
+            self.__StreamingOn()
+
     def __zoomin(self):
         index = self.window_widths.index(self.window_width)
         
@@ -179,15 +214,15 @@ class WIDGET_controls(QtWidgets.QWidget):
         self.scrollbar.setValue(100 - self.window_offset)
         print(self.window_offset)
     
-    def __next(self):
+    def __ff(self):
         self.window_offset = self.window_offset - 5
         if self.window_offset < 0:
             self.window_offset = 0
         self.signal_offset.emit(self.window_offset)
         self.scrollbar.setValue(100 - self.window_offset)
         print(self.window_offset)
-    
-    def __ff(self):
+        
+    def __next(self):
         self.window_offset = self.window_offset - 10
         if self.window_offset < 0:
             self.window_offset = 0
@@ -202,7 +237,6 @@ def main():
     window = WIDGET_controls() # Create an instance of our class
     window.show()
     sys.exit(app.exec()) #program loops forever
-    
 
 if __name__ == '__main__':
     main()

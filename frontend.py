@@ -31,22 +31,31 @@ class FrontEnd():
         self.q_data = q_data
         self.settings = config
         
-        self.mode = "Pause"
+        self.mode = "Pause" #"Stream", "Pause", "Stop"
         
         self.app = QtWidgets.QApplication(sys.argv)
         self.data = data  
         
         self.mainwindow = WINDOW_main(settings=config, Q_settings=q_settings, filepath="config.ini")
         self.__linkThreads()
-        
+        self.__linkControlSignals()
         
         #self.thread_rcvdata = Worker_DAQ(self.q_data) #TODO - get working
         
     #### MANGELED METHODS ####
-    def __getData(self, sample):
-        self.data = pd.concat([self.data, sample])
-        #TODO - downsample data
-        self.updateGraphs()
+    def __linkControlSignals(self):
+        self.mainwindow.widget_controls.signal_mode.connect(self.__updateMode)
+        self.mainwindow.widget_controls.signal_timeframe.connect(self.__updateTimeFrame)
+        self.mainwindow.widget_controls.signal_offset.connect(self.__updateWindowOffset)
+    
+    def __updateMode(self, mode):
+        print("Mode updated: ", mode)
+    
+    def __updateTimeFrame(self, frame):
+        print("Timeframe updated: ", frame)
+    
+    def __updateWindowOffset(self, offset):
+        print("Window offset updated: ", offset)
     
     def __linkThreads(self):
         self.thread_DAQ = QThread() #create thread
@@ -63,6 +72,11 @@ class FrontEnd():
         
         #TODO: move start thread to when stream starts, not on program start
         self.thread_DAQ.start()
+        
+    def __getData(self, sample):
+        self.data = pd.concat([self.data, sample])
+        #TODO - downsample data
+        self.updateGraphs() 
      
     def __linkWindows(self):
         pass    
