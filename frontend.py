@@ -21,6 +21,7 @@ from PyQt5.QtCore import QObject, QThread, pyqtSignal
 from window_main import WINDOW_main
 from thread_rcvdata import Worker_DAQ
 from common import dataselectmapping, data
+#from future.backports.test.pystone import FALSE
 
 #### CLASSES ####
 class FrontEnd():
@@ -31,7 +32,12 @@ class FrontEnd():
         self.q_data = q_data
         self.settings = config
         
-        self.mode = "Pause" #"Stream", "Pause", "Stop"
+        #self.mode = "Pause" #"Stream", "Pause", "Stop"
+        self.isStreaming = False
+        self.isRecording = False
+        
+        self.window_width = 30 #in mins
+        self.window_offset = 0 #in int from 0 -> 100
         
         self.app = QtWidgets.QApplication(sys.argv)
         self.data = data  
@@ -40,22 +46,41 @@ class FrontEnd():
         self.__linkThreads()
         self.__linkControlSignals()
         
-        #self.thread_rcvdata = Worker_DAQ(self.q_data) #TODO - get working
-        
     #### MANGELED METHODS ####
     def __linkControlSignals(self):
-        self.mainwindow.widget_controls.signal_mode.connect(self.__updateMode)
-        self.mainwindow.widget_controls.signal_timeframe.connect(self.__updateTimeFrame)
+        self.mainwindow.widget_controls.signal_streaming.connect(self.__updateStreaming)
+        self.mainwindow.widget_controls.signal_recordname.connect(self.__updateFilename)
+        self.mainwindow.widget_controls.signal_recording.connect(self.__updateRecording)
+        self.mainwindow.widget_controls.signal_width.connect(self.__updateWindowWidth)
         self.mainwindow.widget_controls.signal_offset.connect(self.__updateWindowOffset)
     
-    def __updateMode(self, mode):
-        print("Mode updated: ", mode)
+    def __updateStreaming(self, onoff):
+        print("FE: Streaming update to: ", onoff)
+        if not self.isStreaming and onoff: #streaming turned on
+            pass
+        if not self.isStreaming and not onoff: #streaming paused
+            self.index_lastSampleBeforePause = len(self.data)
+        self.isStreaming = onoff
     
-    def __updateTimeFrame(self, frame):
-        print("Timeframe updated: ", frame)
+    def __updateFilename(self, filename):
+        self.filename = filename
+    
+    def __updateRecording(self, onoff):
+        if not self.isRecording:
+            self.q_commands.put("Record:".format(name=self.filename)) #
+        else:
+            self.q_commands.put("Stop") #stop recording & streaming
+        self.isStreaming = onoff
+    
+    def __updateWindowWidth(self, width):
+        print("FE: Window width updated to: ", width)
+        self.window_width = width
+        self.updateGraphs()
     
     def __updateWindowOffset(self, offset):
-        print("Window offset updated: ", offset)
+        print("FE: Window offset updated to: ", offset)
+        self.window_offset = offset
+        self.updateGraphs() 
     
     def __linkThreads(self):
         self.thread_DAQ = QThread() #create thread
@@ -63,20 +88,17 @@ class FrontEnd():
         self.worker_DAQ.moveToThread(self.thread_DAQ) #move object to thread
         
         self.thread_DAQ.started.connect(self.worker_DAQ.run) #when thread started, run worker's run()
-        #self.thread_DAQ.started.connect(self.worker_DAQ.test_run)
-        
-        #self.worker.finished.connect(self.thread.quit)
-        #self.worker.finished.connect(self.worker.deleteLater)
-        #self.thread.finished.connect(self.thread.deleteLater)
+        #self.thread_DAQ.started.connect(self.worker_DAQ.test_run) #used for testing
+
         self.worker_DAQ.sendData.connect(self.__getData) #link pyqt signals
         
-        #TODO: move start thread to when stream starts, not on program start
         self.thread_DAQ.start()
         
     def __getData(self, sample):
         self.data = pd.concat([self.data, sample])
         #TODO - downsample data
-        self.updateGraphs() 
+        if self.isStreaming:
+            self.updateGraphs() 
      
     def __linkWindows(self):
         pass    

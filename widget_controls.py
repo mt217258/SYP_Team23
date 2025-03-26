@@ -124,14 +124,17 @@ class WIDGET_controls(QtWidgets.QWidget):
         
     def __RecordingOn(self, filename):
         print("Recording on")
-                    
-        self.isRecording = True
-        self.signal_recording.emit(True)
+        self.isRecording = True           
+        
+        self.window_offset = 0
+        self.scrollbar.setValue(100 - self.window_offset)
      
         self.button_recstop.setIcon(QIcon('./icons/icon_stop.png'))
         self.button_playpause.setIcon(QIcon('./icons/icon_pause.png'))
-        print(type(filename.name), filename.name)
+        
+        self.signal_offset.emit(self.window_offset)
         self.signal_recordname.emit(filename.name)
+        self.signal_recording.emit(True)
         
     def __RecordingOff(self):
         print("Ending recording")
