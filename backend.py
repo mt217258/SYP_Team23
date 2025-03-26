@@ -125,9 +125,6 @@ class BackEnd():
                     for ch, value in zip(self.channels[index], sample):
                         data_dict[ch] = value
 
-                    # Send data to the frontend queue
-                    #self.q_data.put(data_dict)
-
                     # Send data to the data queue (if needed)
                     self.thread_queues[index].put(data_dict)
 
