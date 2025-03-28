@@ -39,6 +39,7 @@ class Worker_DAQ(QObject):
             
             #pop queue and pass it through signal to front end
             sample = self.data_queue.get()
+            print("FE: recieved: ", sample)
             self.sendData.emit(sample) 
             
             

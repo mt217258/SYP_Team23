@@ -57,7 +57,7 @@ class FrontEnd():
     def __updateStreaming(self, onoff):
         print("FE: Streaming update to: ", onoff)
         if not self.isStreaming and onoff: #streaming turned on
-            pass
+            self.q_commands.put("Play")
         if not self.isStreaming and not onoff: #streaming paused
             self.index_lastSampleBeforePause = len(self.data)
         self.isStreaming = onoff
@@ -111,6 +111,7 @@ class FrontEnd():
     
     #### MUGGLE METHODS #### 
     def start(self):
+        print("FE: Start")
         self.mainwindow.show()
         sys.exit(self.app.exec()) #program loops forever
     
