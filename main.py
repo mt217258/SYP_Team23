@@ -1,44 +1,49 @@
 #### LIBRARIES ####
 # OFF THE SHELF #
-import queue
+import multiprocessing
 import threading
-import sys
 import configparser
+import time
+import keyboard
 
 # CUSTOM #
 from backend import BackEnd
 from frontend import FrontEnd
 
-#### CLASSES ####
-    #### MAGIC METHODS ####
-    #### MANGELED METHODS #### 
-    #### MUGGLE METHODS #### 
-    
-    
-#### MAIN #### (just for testing independently of everything else)
+
+#### MAIN ####
 def main():
-    #TODO - Start OpenSignals with lsl turned on, if possible
-    #TODO - front and back end on different threads
-    
+    # Load configuration
     config = configparser.ConfigParser()
     config.read("config.ini")
-    
-    #TODO - verify if correct way to impliment queues
-    #see: https://docs.python.org/3/library/queue.html
-    q_settings = queue.Queue()
-    q_commands = queue.Queue()
-    q_data = queue.Queue()
-    
-    back = BackEnd(q_settings, q_commands, q_data, config)
-    front = FrontEnd(q_settings, q_commands, q_data, config)
-    
-    #TODO - create threads/processes to run back/front independently
-    back.start()
-    front.start()
-    
-    #TODO - add code to close back & front when GUI is closed
-    #back.stop()
-    #front.stop()
+
+    # Create queues for communication
+    q_settings = multiprocessing.Queue()  # Frontend -> Backend (settings)
+    q_commands = multiprocessing.Queue()  # Frontend -> Backend (commands)
+    q_data = multiprocessing.Queue()      # Backend -> Frontend (raw data)
+
+    # Initialize backend and frontend
+    backend = BackEnd(q_settings, q_commands, q_data, config)
+    #frontend = FrontEnd(q_settings, q_commands, q_data, config)
+
+    # Create processes for backend and frontend
+    #frontend_process = multiprocessing.Process(target=frontend.start)
+
+    # Start processes
+    backend.start()
+    #frontend_process.start()
+    try:
+        while True:
+            time.sleep(1)
+            if keyboard.is_pressed('ctrl+q'):
+                print("Stopping....")
+                break
+    except KeyboardInterrupt:
+        print("Stopping...")
+    finally:
+        backend.stop()
+        frontend_thread.join()
+        print("All threads stopped. Exiting program.")
 
 if __name__ == '__main__':
     main()

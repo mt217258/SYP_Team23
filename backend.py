@@ -1,153 +1,274 @@
-'''
-Author:  Will Thornton          
-Contact: wl939708@dal.ca
-Description: Backend program to read data from the Lab Streaming Layer (LSL) place data in .csv file and process data to place in queue for front end.
-TODO List:   
-
-print data into csv, currently putting the data into seperate csv
-Check if I can read four channels of data
-filter/process data for queue
-Accept commands to alter how processing is done
-Data format: data = pd.DataFrame(data={"Time":[], "sEMG_L":[], "sEMG_R":[]})
-       
-'''
-# Test push in Will Thornton
-#### LIBRARIES ####
-# OFF THE SHELF #
-import queue
+﻿import multiprocessing
+from re import I
 import pandas as pd
 import threading
 from pylsl import StreamInlet, resolve_streams
-import xml.etree.ElementTree as ET # Parsing channel data
+import xml.etree.ElementTree as ET  # Parsing channel data
 import time
 import os
 import keyboard
 import csv
-# CUSTOM #
+import queue
+from queue import Empty
+import h5py
+import numpy as np
 
-#### CLASSES ####
 class BackEnd():
     #### MAGIC METHODS ####
-    def __init__(self, q_settings, q_commands, q_data, frontend_q, config, output_filename="lsl_data.csv"):
+    def __init__(self, q_settings, q_commands, q_data, config):
+        # Shared memory setup
         self.q_settings = q_settings
         self.q_commands = q_commands
         self.q_data = q_data
-        self.frontend_q = frontend_q
         self.config = config
         self.running = False
-        self.stream_threads = [] # List of stream threads
-        self.inlets = [] # List of StreamInlet objects
-        self.channels = [] # Channel Labels from XML
-        self.output_filename = output_filename
-        self.headers_written = False
-    
-    #### MANGELED METHODS #### 
+        self.mac_addresses = {}
+        self.thread_queues = []
+        self.stream_threads = []  # List of stream threads
+        self.inlets = []  # List of StreamInlet objects
+        self.channels = []  # Channel Labels from XML
+
+    #### MANGELED METHODS ####
     def _parse_xml(self, xml_string, stream_index):
         root = ET.fromstring(xml_string)
-        channels = [channel.find('label').text for channel in root.find(".//channels")]
+
+        # Extract MAC address
+        mac_element = root.find(".//type")
+        if mac_element is not None:
+            mac_address = mac_element.text.strip().replace(":", "_")  # Clean MAC address
+            if mac_address == "5C_02_72_9F_4E_4C":
+                mac_address = "EDA_R"
+            elif mac_address == "60_77_71_82_92_C9":
+                mac_address = "EDA_L"
+            elif mac_address == "58_8E_81_A2_49_02":
+                mac_address = "sEMG_R"
+            elif mac_address == "58_8E_81_A2_48_D3":
+                mac_address = "sEMG_L"
+            self.mac_addresses[stream_index] = mac_address
+            print(f"mac_addresses[{stream_index}] = {self.mac_addresses[stream_index]}")
+            print(f"MAC Address for stream {stream_index}: {mac_address}")
+            
+
+        else:
+            mac_address = f"stream_{stream_index}"  # Default name if MAC is not found
+            print(f"No MAC Address found in stream {stream_index}, using default name.")
+
+        # Extract channels and prefix them with the MAC address
+        channels = []
+        for channel in root.findall(".//channels/channel"):
+            label = channel.find('label').text
+            if label == "EDABITREV0":
+                label = "raw"
+            elif label == "EMG0":
+                label = "raw"
+            # Prefix the channel name with the MAC address
+            channel_name = f"{label}-{mac_address}"
+            channels.append(channel_name)
+
+        # Store the channels for this stream
         self.channels.append(channels)
-        print(f"Extracted Channels {stream_index} - Extracted Channels: {channels}")
-    
+        print(f"Extracted Channels {stream_index}: {channels}")
+
     def _find_streams(self):
-        print("Looking for an OpenSignals stream...")
-        streams = resolve_streams()
-        streams = [s for s in streams if s.name() == 'OpenSignals']
-        if not streams:
-            print("No OpenSignals stream found.")
+        print("Looking for OpenSignals streams...")
+        all_streams = resolve_streams()
+    
+        # Filter to only unique MAC addresses (last seen wins)
+        unique_streams = {}
+        for stream in all_streams:
+            if stream.name() == 'OpenSignals':
+                inlet = StreamInlet(stream)  # Temporary connection
+                xml = inlet.info().as_xml()
+                mac = ET.fromstring(xml).find(".//type").text.strip()
+                unique_streams[mac] = stream  # Overwrite duplicates
+    
+        if not unique_streams:
+            print("❌ No valid OpenSignals streams found")
             return
 
-        for index, stream in enumerate(streams):
+        # Connect only to the 4 real devices
+        self.inlets = []
+        for index, (mac, stream) in enumerate(unique_streams.items()):
+            if index >= 4:  # Only keep first 4 devices
+                break
+            
             inlet = StreamInlet(stream)
             self.inlets.append(inlet)
-            print(f"Stream {index} connected: {stream.name()}")
-
-            # Get XML metadata and parse
+            self.thread_queues.append(queue.Queue())
+        
+            # Parse XML and store MAC (but still use stream_{index} for files)
             xml_string = inlet.info().as_xml()
-            self._parse_xml(xml_string, index)
+            self._parse_xml(xml_string, index)  # index 0-3 only
+        
+            print(f"✅ Connected to stream {index} | MAC: {mac}")
+            self._debug_lsl(inlet)
+        print(f"Final MAC Address Mapping: {self.mac_addresses}")
+
+    def _debug_lsl(self, inlet):
+        print("Attempting to pull a test sample...")
+        sample, timestamp = inlet.pull_sample(timeout=2.0)
+        if sample:
+            print(f"✅ LSL is WORKING! Sample: {sample}, Timestamp: {timestamp}")
+        else:
+            print("❌ No data received from LSL. Check your data source!")
 
     def _stream_data(self, inlet, index):
         print(f"Streaming started for inlet {index}. Press 'ctrl+q' to stop")
 
-        self.output_filename = "lsl_data.csv"  # Single CSV file
-        file_exists = os.path.exists(self.output_filename)
+        mac_address = self.mac_addresses.get(index, f"stream_{index}")
+        filename = f"{mac_address}.h5"
 
-        # Ensure we have all unique headers across streams
-        all_channels = ["Time", "nSeq"]
-        for stream_channels in self.channels:
-            all_channels.extend([ch for ch in stream_channels if ch not in all_channels])
+        with h5py.File(filename, "w") as h5file:
+            group = h5file.require_group(f"stream_{index}")
 
-        with open(self.output_filename, mode="a", newline="") as file:
-            writer = csv.DictWriter(file, fieldnames=all_channels)
+            all_channels = ["Time"] + self.channels[index]
 
-            # Only write header once
-            if not file_exists:
-                writer.writeheader()
+            buffer = []
+            batch_size = 10
 
             while self.running:
-                result = inlet.pull_chunk(timeout=0.01)
-                if result is None:
+                samples, timestamps = inlet.pull_chunk(timeout=0.001)
+                if not samples or not timestamps:
                     continue
 
-                sample, timestamps = result
-                if not sample or not timestamps:
-                    continue
+                for sample, timestamp in zip(samples, timestamps):
+                    data_dict = {"Time": timestamp, "nSeq": index}
+                    for ch, value in zip(self.channels[index], sample):
+                        data_dict[ch] = value
 
-                if sample:
-                    for sample, timestamp in zip(sample, timestamps):
-                        data_dict = {"Time": timestamp, "nSeq": index}  # Shared fields
-                        for ch, value in zip(self.channels[index], sample):
-                            data_dict[ch] = value  # Correctly map values to respective channels
+                    # Send data to the data queue (if needed)
+                    self.thread_queues[index].put(data_dict)
 
-                        # Ensure missing values are represented as empty fields
-                        for field in all_channels:
-                            if field not in data_dict:
-                                data_dict[field] = ""  
+                    buffer.append(data_dict)
 
-                        writer.writerow(data_dict)
-                        self.q_data.put(data_dict)
-                        print(f"Data from stream {index}: {data_dict}")
+                    if len(buffer) >= batch_size:
+                        self._write_to_hdf5(h5file, group, buffer, all_channels)
+                        buffer.clear()
 
-                time.sleep(0.001)
-    #### MUGGLE METHODS #### 
+            if buffer:
+                self._write_to_hdf5(h5file, group, buffer, all_channels)
+
+    def _write_to_hdf5(self, h5file, group, buffer, all_channels):
+        #"""Safe HDF5 writing with proper error handling"""
+        try:
+            # Filter out None or invalid entries
+            valid_entries = [entry for entry in buffer if isinstance(entry, dict)]
+        
+            if not valid_entries:
+                print("Warning: Empty buffer or invalid entries")
+                return
+
+            # Get actual available channels
+            available_channels = set()
+            for entry in valid_entries:
+                available_channels.update(entry.keys())
+        
+            # Use only channels that exist in all entries
+            common_channels = [ch for ch in all_channels if ch in available_channels]
+        
+            if not common_channels:
+                print("Warning: No common channels found in buffer entries")
+                return
+
+            # Create data array only with available channels
+            data_list = []
+            for entry in valid_entries:
+                row = []
+                for ch in common_channels:
+                    try:
+                        row.append(float(entry.get(ch, np.nan)))
+                    except (ValueError, TypeError):
+                        row.append(np.nan)
+                data_list.append(row)
+        
+            data_array = np.array(data_list)
+        
+            # Write to HDF5
+            if "data" not in group:
+                # Create dataset if it doesn't exist
+                maxshape = (None, len(common_channels))
+                group.create_dataset("data", data=data_array, maxshape=maxshape)
+                group.attrs["channels"] = common_channels
+            else:
+                # Append to existing dataset
+                dataset = group["data"]
+            
+                # Resize if needed
+                if dataset.shape[1] != len(common_channels):
+                    print(f"Warning: Channel count mismatch ({dataset.shape[1]} vs {len(common_channels)})")
+                    return
+            
+                # Append data
+                old_size = dataset.shape[0]
+                new_size = old_size + len(data_array)
+                dataset.resize((new_size, dataset.shape[1]))
+                dataset[old_size:new_size] = data_array
+            
+        except Exception as e:
+            print(f"Error in _write_to_hdf5: {str(e)}")
+            raise
+
+    def _aggregate_data(self):
+        print("Starting data aggregation...")
+        while self.running:
+            if all(not q.empty() for q in self.thread_queues):
+                combined_data = [q.get(timeout=0.1) for q in self.thread_queues]
+                flattened_data = {}
+                for i, data_dic in enumerate(combined_data):
+                    if i > 0 and 'Time' in data_dic:
+                        del data_dic['Time']
+                    for key, value in data_dic.items():
+                        if 'nSeq' not in key:
+                            flattened_data[key] = value
+
+                    # Determine which stream (R or L) this data belongs to
+                    acc_columns = [col for col in data_dic.keys() if col.startswith('gACC')]
+                    if len(acc_columns) == 3:  # Ensure we have all 3 ACC components
+                        gACC1 = data_dic.get(acc_columns[0], 0.0)
+                        gACC2 = data_dic.get(acc_columns[1], 0.0)
+                        gACC3 = data_dic.get(acc_columns[2], 0.0)
+                        acc_magnitude = (gACC1**2 + gACC2**2 + gACC3**2) ** 0.5  # Magnitude formula
+
+                        # Remove individual ACC columns
+                        for col in acc_columns:
+                            flattened_data.pop(col, None)
+
+                        # Determine if this is the R or L stream
+                        if 'R' in acc_columns[0]:  # Check if the first ACC column belongs to the R stream
+                            flattened_data['raw-ACC_R'] = acc_magnitude
+                        elif 'L' in acc_columns[0]:  # Check if the first ACC column belongs to the L stream
+                            flattened_data['raw-ACC_L'] = acc_magnitude
+
+                # Create DataFrame with a single row
+                df = pd.DataFrame([flattened_data])
+                #print(f"Aggregated DataFrame Backend:\n{df}\n")
+                self.q_data.put(df)
+            #time.sleep(1.0)
+
+    #### MUGGLE METHODS ####
     def start(self):
         if not self.running:
-            self.running = True
             self.stream_threads = []
+            self.thread_queues = []
+            self.running = True
             self._find_streams()
+
+            if len(self.inlets) > 4:
+                print("⚠️ Warning: More than 4 devices detected. Using first 4.")
+
+            # Start stream threads
             for index, inlet in enumerate(self.inlets):
+
                 stream_thread = threading.Thread(target=self._stream_data, args=(inlet, index), daemon=True)
                 self.stream_threads.append(stream_thread)
                 stream_thread.start()
+            self.aggregation_thread = threading.Thread(target=self._aggregate_data, daemon=True)
+            self.aggregation_thread.start()
+            print("LSL Stream started and data logging in progress.")
 
-            print("LSL Stream started.")
-    
     def stop(self):
         if self.running:
             self.running = False
             for thread in self.stream_threads:
                 thread.join()
             print("LSL Stream stopped.")
-
-#### MAIN #### (just for testing independently of everything else)
-def main():
-    q_settings = queue.Queue()
-    q_commands = queue.Queue()
-    q_data = queue.Queue()
-
-    backend = BackEnd(q_settings, q_commands, q_data)
-    backend.start()
-
-    while True:
-        try:
-            sample = q_data.get(timeout=0.1)
-        except queue.Empty:
-            print("No data received.")
-
-        if keyboard.is_pressed('ctrl+q'):
-            print("Exiting program gracefully...")
-            backend.stop()
-            break
-
-
-if __name__ == '__main__':
-    main()
