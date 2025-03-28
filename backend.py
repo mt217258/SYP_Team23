@@ -44,7 +44,11 @@ class BackEnd():
                 mac_address = "sEMG_R"
             elif mac_address == "58_8E_81_A2_48_D3":
                 mac_address = "sEMG_L"
+            self.mac_addresses[stream_index] = mac_address
+            print(f"mac_addresses[{stream_index}] = {self.mac_addresses[stream_index]}")
             print(f"MAC Address for stream {stream_index}: {mac_address}")
+            
+
         else:
             mac_address = f"stream_{stream_index}"  # Default name if MAC is not found
             print(f"No MAC Address found in stream {stream_index}, using default name.")
@@ -66,32 +70,39 @@ class BackEnd():
         print(f"Extracted Channels {stream_index}: {channels}")
 
     def _find_streams(self):
-        print("Looking for an OpenSignals stream...")
-        streams = resolve_streams()
-        
-        if not streams:
-            print("❌ No LSL streams found. Make sure your data source is running!")
-            return
-        
-        streams = [s for s in streams if s.name() == 'OpenSignals']
-        
-        if not streams:
-            print("❌ No OpenSignals stream found. Check your LSL source!")
+        print("Looking for OpenSignals streams...")
+        all_streams = resolve_streams()
+    
+        # Filter to only unique MAC addresses (last seen wins)
+        unique_streams = {}
+        for stream in all_streams:
+            if stream.name() == 'OpenSignals':
+                inlet = StreamInlet(stream)  # Temporary connection
+                xml = inlet.info().as_xml()
+                mac = ET.fromstring(xml).find(".//type").text.strip()
+                unique_streams[mac] = stream  # Overwrite duplicates
+    
+        if not unique_streams:
+            print("❌ No valid OpenSignals streams found")
             return
 
-        for index, stream in enumerate(streams):
+        # Connect only to the 4 real devices
+        self.inlets = []
+        for index, (mac, stream) in enumerate(unique_streams.items()):
+            if index >= 4:  # Only keep first 4 devices
+                break
+            
             inlet = StreamInlet(stream)
             self.inlets.append(inlet)
             self.thread_queues.append(queue.Queue())
-            print(f"✅ Connected to stream {index}: {stream.name()} | Type: {stream.type()}")
-            
-            xml_string = inlet.info().as_xml()
-            self._parse_xml(xml_string, index)
-            
-            self._debug_lsl(inlet)
         
-        print("Waiting 2s to stabilize LSL streams...")
-        time.sleep(2)
+            # Parse XML and store MAC (but still use stream_{index} for files)
+            xml_string = inlet.info().as_xml()
+            self._parse_xml(xml_string, index)  # index 0-3 only
+        
+            print(f"✅ Connected to stream {index} | MAC: {mac}")
+            self._debug_lsl(inlet)
+        print(f"Final MAC Address Mapping: {self.mac_addresses}")
 
     def _debug_lsl(self, inlet):
         print("Attempting to pull a test sample...")
@@ -107,7 +118,7 @@ class BackEnd():
         mac_address = self.mac_addresses.get(index, f"stream_{index}")
         filename = f"{mac_address}.h5"
 
-        with h5py.File(filename, "a") as h5file:
+        with h5py.File(filename, "w") as h5file:
             group = h5file.require_group(f"stream_{index}")
 
             all_channels = ["Time"] + self.channels[index]
@@ -241,6 +252,9 @@ class BackEnd():
             self.thread_queues = []
             self.running = True
             self._find_streams()
+
+            if len(self.inlets) > 4:
+                print("⚠️ Warning: More than 4 devices detected. Using first 4.")
 
             # Start stream threads
             for index, inlet in enumerate(self.inlets):
