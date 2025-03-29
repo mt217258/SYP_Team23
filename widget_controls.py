@@ -15,6 +15,7 @@ from PyQt5.QtCore import Qt, pyqtSignal
 from tkinter.filedialog import asksaveasfile
 from tkinter import messagebox
 #from future.backports.test.pystone import FALSE
+<<<<<<< Updated upstream
 
 #from PyQt5.QtCore.Qt import Horizontal
 
@@ -36,6 +37,8 @@ from PyQt5.QtCore import Qt, pyqtSignal
 from tkinter.filedialog import asksaveasfile
 from tkinter import messagebox
 #from future.backports.test.pystone import FALSE
+=======
+>>>>>>> Stashed changes
 
 #from PyQt5.QtCore.Qt import Horizontal
 
@@ -261,6 +264,7 @@ def main():
     window = WIDGET_controls() # Create an instance of our class
     window.show()
     sys.exit(app.exec()) #program loops forever
+<<<<<<< Updated upstream
 
 if __name__ == '__main__':
     main()
@@ -484,6 +488,8 @@ def main():
     window = WIDGET_controls() # Create an instance of our class
     window.show()
     sys.exit(app.exec()) #program loops forever
+=======
+>>>>>>> Stashed changes
 
 if __name__ == '__main__':
     main()

@@ -13,7 +13,11 @@ import configparser
 from PyQt5 import QtWidgets
 import sys
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 import numpy as np
+=======
+
+>>>>>>> Stashed changes
 =======
 
 >>>>>>> Stashed changes
@@ -50,6 +54,7 @@ class FrontEnd():
         self.__linkThreads()
         self.__linkControlSignals()
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 
         from PyQt5.QtCore import QTimer
 
@@ -68,6 +73,10 @@ class FrontEnd():
             self.updateGraphs()
             self.pending_update = False
 
+=======
+        
+    #### MANGELED METHODS ####
+>>>>>>> Stashed changes
 =======
         
     #### MANGELED METHODS ####
@@ -119,6 +128,7 @@ class FrontEnd():
         
         self.thread_DAQ.start()
         
+<<<<<<< Updated upstream
 <<<<<<< Updated upstream
     def __getData(self, batch_df):
         try:
@@ -245,12 +255,17 @@ class FrontEnd():
                 print(f"⚠️ Current buffer preserved ({len(self.data)} samples)")
 
 =======
+=======
+>>>>>>> Stashed changes
     def __getData(self, sample):
         self.data = pd.concat([self.data, sample])
         #TODO - downsample data
         if self.isStreaming:
             self.updateGraphs() 
      
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
     def __linkWindows(self):
         pass    
