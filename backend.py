@@ -1,4 +1,5 @@
-﻿import multiprocessing
+﻿import enum
+import multiprocessing
 from re import I
 import pandas as pd
 import threading
@@ -11,6 +12,7 @@ import csv
 import queue
 from queue import Empty
 import h5py
+import traceback
 import numpy as np
 
 class BackEnd():
@@ -45,7 +47,6 @@ class BackEnd():
             elif mac_address == "58_8E_81_A2_48_D3":
                 mac_address = "sEMG_L"
             self.mac_addresses[stream_index] = mac_address
-            print(f"mac_addresses[{stream_index}] = {self.mac_addresses[stream_index]}")
             print(f"MAC Address for stream {stream_index}: {mac_address}")
             
 
@@ -113,40 +114,108 @@ class BackEnd():
             print("❌ No data received from LSL. Check your data source!")
 
     def _stream_data(self, inlet, index):
-        print(f"Streaming started for inlet {index}. Press 'ctrl+q' to stop")
-
+        print(f"🚀 Starting stream {index} - Enhanced Batch Mode")
         mac_address = self.mac_addresses.get(index, f"stream_{index}")
         filename = f"{mac_address}.h5"
 
+        # Configuration
+        TARGET_RATE = 400       # Hz
+        SAMPLES_PER_BATCH = 40  # Target batch size
+        HDF5_BATCH_SIZE = 10    # HDF5 write batch size
+        STREAM_TIMEOUT = 0.01   # 10ms
+        SYNTHETIC_RATE = 400    # Hz
+        MAX_WAIT_TIME = 0.200   # Max wait for partial batch
+
+        # State tracking
+        sample_buffer = []
+        data_buffer = []        # For HDF5 writing
+        synthetic_timestamp = time.time()
+        batch_counter = 0
+        last_valid_time = time.time()
+        batch_start_time = time.time()
+
         with h5py.File(filename, "w") as h5file:
             group = h5file.require_group(f"stream_{index}")
-
             all_channels = ["Time"] + self.channels[index]
 
-            buffer = []
-            batch_size = 10
-
             while self.running:
-                samples, timestamps = inlet.pull_chunk(timeout=0.001)
-                if not samples or not timestamps:
-                    continue
+                try:
+                    # Get available samples
+                    samples, _ = inlet.pull_chunk(timeout=STREAM_TIMEOUT)
+                
+                    if samples:
+                        # Generate synthetic timestamps
+                        timestamps = [synthetic_timestamp + (i/SYNTHETIC_RATE) 
+                                    for i in range(len(samples))]
+                        synthetic_timestamp = timestamps[-1] + (1/SYNTHETIC_RATE)
+                    
+                        # Add to buffers
+                        for sample, timestamp in zip(samples, timestamps):
+                            data_dict = {
+                                "Time": timestamp,
+                                "raw": sample[0],
+                                "nSeq": index,
+                                **{ch: value for ch, value in zip(self.channels[index], sample)}
+                            }
+                            sample_buffer.append(data_dict)
+                            data_buffer.append(data_dict)
+                    
+                        last_valid_time = time.time()
+                        print(f"📥 Received {len(samples)} samples | Buffer: {len(sample_buffer)}")
 
-                for sample, timestamp in zip(samples, timestamps):
-                    data_dict = {"Time": timestamp, "nSeq": index}
-                    for ch, value in zip(self.channels[index], sample):
-                        data_dict[ch] = value
+                    # Write to HDF5 when enough samples
+                    if len(data_buffer) >= HDF5_BATCH_SIZE:
+                        self._write_to_hdf5(h5file, group, data_buffer, all_channels)
+                        data_buffer.clear()
 
-                    # Send data to the data queue (if needed)
-                    self.thread_queues[index].put(data_dict)
+                    # Process complete batches
+                    current_time = time.time()
+                    buffer_ready = len(sample_buffer) >= SAMPLES_PER_BATCH
+                    time_elapsed = current_time - batch_start_time >= MAX_WAIT_TIME
+                
+                    if buffer_ready or time_elapsed:
+                        if buffer_ready:
+                            batch_samples = sample_buffer[:SAMPLES_PER_BATCH]
+                        else:
+                            batch_samples = sample_buffer.copy()
+                            print(f"⏱️ Sending partial batch after {MAX_WAIT_TIME:.3f}s wait")
 
-                    buffer.append(data_dict)
+                        batch_df = pd.DataFrame(batch_samples)
+                    
+                        try:
+                            self.thread_queues[index].put(batch_df, timeout=0.1)
+                            batch_counter += 1
+                            print(f"📤 Sent batch {batch_counter} | Size: {len(batch_df)}")
+                        
+                            # Remove processed samples
+                            if buffer_ready:
+                                sample_buffer = sample_buffer[SAMPLES_PER_BATCH:]
+                            else:
+                                sample_buffer.clear()
+                            
+                            batch_start_time = current_time
+                        except queue.Full:
+                            print("❌ Queue full - dropping batch")
 
-                    if len(buffer) >= batch_size:
-                        self._write_to_hdf5(h5file, group, buffer, all_channels)
-                        buffer.clear()
+                    # Handle stream timeouts
+                    if time.time() - last_valid_time > 1.0:
+                        print(f"⚠️ No data for 1s | Buffer: {len(sample_buffer)} samples")
+                        last_valid_time = time.time()
+                
+                    time.sleep(0.001)
+                
+                except Exception as e:
+                    print(f"🚨 Stream error: {str(e)}")
+                    time.sleep(0.1)
 
-            if buffer:
-                self._write_to_hdf5(h5file, group, buffer, all_channels)
+            # Final flush
+            if data_buffer:
+                self._write_to_hdf5(h5file, group, data_buffer, all_channels)
+            if sample_buffer:
+                final_df = pd.DataFrame(sample_buffer)
+                self.thread_queues[index].put(final_df)
+        
+            print(f"🔴 Stream {index} stopped | Total batches: {batch_counter} | Samples: {len(sample_buffer)}")
 
     def _write_to_hdf5(self, h5file, group, buffer, all_channels):
         #"""Safe HDF5 writing with proper error handling"""
@@ -209,41 +278,87 @@ class BackEnd():
             raise
 
     def _aggregate_data(self):
-        print("Starting data aggregation...")
+        print("🔄 Starting Enhanced Data Aggregation")
+        batch_counter = 0
+    
         while self.running:
-            if all(not q.empty() for q in self.thread_queues):
-                combined_data = [q.get(timeout=0.1) for q in self.thread_queues]
-                flattened_data = {}
-                for i, data_dic in enumerate(combined_data):
-                    if i > 0 and 'Time' in data_dic:
-                        del data_dic['Time']
-                    for key, value in data_dic.items():
-                        if 'nSeq' not in key:
-                            flattened_data[key] = value
+            try:
+                # DEBUG: Show queue states
+                print("\n--- Queue Status ---")
+                for i, q in enumerate(self.thread_queues):
+                    print(f"Queue {i} ({self.mac_addresses.get(i, 'unknown')}): {q.qsize()} items")
 
-                    # Determine which stream (R or L) this data belongs to
-                    acc_columns = [col for col in data_dic.keys() if col.startswith('gACC')]
-                    if len(acc_columns) == 3:  # Ensure we have all 3 ACC components
-                        gACC1 = data_dic.get(acc_columns[0], 0.0)
-                        gACC2 = data_dic.get(acc_columns[1], 0.0)
-                        gACC3 = data_dic.get(acc_columns[2], 0.0)
-                        acc_magnitude = (gACC1**2 + gACC2**2 + gACC3**2) ** 0.5  # Magnitude formula
+                # Process all available queues
+                combined_data = []
+                for i, q in enumerate(self.thread_queues):
+                    while not q.empty():  # Process all available batches per queue
+                        try:
+                            data = q.get_nowait()
+                            if not data.empty:
+                                print(f"\n--- Received Data from Stream {i} ---")
+                                print(f"Shape: {data.shape}")
+                                print(f"Columns: {data.columns.tolist()}")
+                                combined_data.append((i, data))
+                        except queue.Empty:
+                            break
 
-                        # Remove individual ACC columns
-                        for col in acc_columns:
-                            flattened_data.pop(col, None)
+                if combined_data:
+                    # Option 1: Forward raw batches with stream identifiers
+                    for i, data in combined_data:
+                        data['stream_id'] = i  # Add stream identifier
+                        self.q_data.put(data)
+                        batch_counter += 1
+                        print(f"📨 Forwarded batch {batch_counter} from stream {i} | Size: {len(data)}")
 
-                        # Determine if this is the R or L stream
-                        if 'R' in acc_columns[0]:  # Check if the first ACC column belongs to the R stream
-                            flattened_data['raw-ACC_R'] = acc_magnitude
-                        elif 'L' in acc_columns[0]:  # Check if the first ACC column belongs to the L stream
-                            flattened_data['raw-ACC_L'] = acc_magnitude
+                    # Option 2: Maintain original aggregation logic for specific processing
+                    flattened_data = {}
+                    for i, data_df in combined_data:
+                        # Handle both single-row and multi-row batches
+                        data_dic = data_df.iloc[0].to_dict() if len(data_df) == 1 else data_df.mean().to_dict()
+                    
+                        if i > 0 and 'Time' in data_dic:
+                            del data_dic['Time']
+                        
+                        for key, value in data_dic.items():
+                            if 'nSeq' not in key and 'stream_id' not in key:
+                                flattened_data[key] = value
 
-                # Create DataFrame with a single row
-                df = pd.DataFrame([flattened_data])
-                #print(f"Aggregated DataFrame Backend:\n{df}\n")
-                self.q_data.put(df)
-            #time.sleep(1.0)
+                        # Handle ACC data (maintain your existing logic)
+                        acc_columns = [col for col in data_dic.keys() if col.startswith('gACC')]
+                        if len(acc_columns) == 3:
+                            gACC1 = data_dic.get(acc_columns[0], 0.0)
+                            gACC2 = data_dic.get(acc_columns[1], 0.0)
+                            gACC3 = data_dic.get(acc_columns[2], 0.0)
+                            acc_magnitude = (gACC1**2 + gACC2**2 + gACC3**2) ** 0.5
+
+                            for col in acc_columns:
+                                flattened_data.pop(col, None)
+
+                            if 'R' in acc_columns[0]:
+                                flattened_data['raw-ACC_R'] = acc_magnitude
+                            elif 'L' in acc_columns[0]:
+                                flattened_data['raw-ACC_L'] = acc_magnitude
+
+                    # Create and send aggregated summary
+                    if flattened_data:
+                        df = pd.DataFrame([flattened_data])
+                        print("\n--- Aggregated Summary ---")
+                        print(f"Shape: {df.shape}")
+                        print(f"Columns: {df.columns.tolist()}")
+                        print("Sample values:")
+                        for col in df.columns:
+                            if 'Time' not in col:
+                                print(f"{col}: {df[col].values[0]}")
+                    
+                        # Send to alternative queue or processing if needed
+                        # self.alt_q_data.put(df)
+
+                time.sleep(0.01)  # Prevent CPU overload
+            
+            except Exception as e:
+                print(f"❌ Aggregation error: {str(e)}")
+                traceback.print_exc()
+                time.sleep(0.1)
 
     #### MUGGLE METHODS ####
     def start(self):
