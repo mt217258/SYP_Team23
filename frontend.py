@@ -12,7 +12,11 @@ import pandas as pd
 import configparser
 from PyQt5 import QtWidgets
 import sys
+<<<<<<< Updated upstream
 import numpy as np
+=======
+
+>>>>>>> Stashed changes
 import multiprocessing
 from PyQt5.QtCore import QObject, QThread, pyqtSignal
 #from PyQt5.QtWidgets import QApplication
@@ -45,6 +49,7 @@ class FrontEnd():
         self.mainwindow = WINDOW_main(settings=config, Q_settings=q_settings, filepath="config.ini")
         self.__linkThreads()
         self.__linkControlSignals()
+<<<<<<< Updated upstream
 
         from PyQt5.QtCore import QTimer
 
@@ -63,6 +68,10 @@ class FrontEnd():
             self.updateGraphs()
             self.pending_update = False
 
+=======
+        
+    #### MANGELED METHODS ####
+>>>>>>> Stashed changes
     def __linkControlSignals(self):
         self.mainwindow.widget_controls.signal_streaming.connect(self.__updateStreaming)
         self.mainwindow.widget_controls.signal_recordname.connect(self.__updateFilename)
@@ -110,6 +119,7 @@ class FrontEnd():
         
         self.thread_DAQ.start()
         
+<<<<<<< Updated upstream
     def __getData(self, batch_df):
         try:
             print("\n" + "="*50)
@@ -234,6 +244,14 @@ class FrontEnd():
             if hasattr(self, 'data'):
                 print(f"⚠️ Current buffer preserved ({len(self.data)} samples)")
 
+=======
+    def __getData(self, sample):
+        self.data = pd.concat([self.data, sample])
+        #TODO - downsample data
+        if self.isStreaming:
+            self.updateGraphs() 
+     
+>>>>>>> Stashed changes
     def __linkWindows(self):
         pass    
     

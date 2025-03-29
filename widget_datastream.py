@@ -74,6 +74,7 @@ class WIDGET_datastream(QtWidgets.QWidget):
         
     
     def updateGraph(self, time, data_left, data_right):
+<<<<<<< Updated upstream
         try:
             # Convert to numpy arrays
             x = np.array(time, dtype=np.float64)
@@ -97,6 +98,10 @@ class WIDGET_datastream(QtWidgets.QWidget):
         # Update Plots
         #self.plotLeft.setData(time_array, left_array)
        # self.plotRight.setData(time_array, right_array)
+=======
+        self.plotLeft.setData(list(time), list(data_left))
+        self.plotRight.setData(list(time), list(data_right))
+>>>>>>> Stashed changes
         #NOTE - Error when lists are empty, might be ignorable
         
 #### VULGAR METHODS #### (they have no class) 

@@ -11,7 +11,10 @@ import pandas as pd
 import math
 import time
 import multiprocessing
+<<<<<<< Updated upstream
 import queue
+=======
+>>>>>>> Stashed changes
 #from common import data
 
 #### CLASSES ####
@@ -21,7 +24,10 @@ class Worker_DAQ(QObject):
     def __init__(self, q_data):
         super(Worker_DAQ, self).__init__()
         self.data_queue = q_data
+<<<<<<< Updated upstream
         self.running = True
+=======
+>>>>>>> Stashed changes
         #self.data = data
         
     #    def run(self):
@@ -34,6 +40,7 @@ class Worker_DAQ(QObject):
     num_samples_window = 50
     
     def run(self):
+<<<<<<< Updated upstream
         while self.running:
             try:
                 #pop queue and pass it through signal to front end
@@ -41,6 +48,17 @@ class Worker_DAQ(QObject):
                 self.sendData.emit(batch)
             except queue.Empty:
                 continue 
+=======
+        while(True):
+            #waiting until there is seomthing in queue
+            while self.data_queue.empty():
+                pass 
+            
+            #pop queue and pass it through signal to front end
+            sample = self.data_queue.get()
+            self.sendData.emit(sample) 
+            
+>>>>>>> Stashed changes
             
     def test_run(self):
         count = 1

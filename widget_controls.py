@@ -10,7 +10,11 @@ TODO List:
 from PyQt5 import QtWidgets
 from PyQt5.Qt import QPushButton
 from PyQt5.QtGui import QIcon
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, pyqtSignal
+
+from tkinter.filedialog import asksaveasfile
+from tkinter import messagebox
+#from future.backports.test.pystone import FALSE
 
 #from PyQt5.QtCore.Qt import Horizontal
 
@@ -262,15 +266,24 @@ if __name__ == '__main__':
     main()
 #### CLASSES ####
 class WIDGET_controls(QtWidgets.QWidget):
+    #### SIGNALS ####
+    signal_streaming = pyqtSignal(bool)
+    signal_recording = pyqtSignal(bool)
+    signal_width = pyqtSignal(int)
+    signal_offset = pyqtSignal(int)
+    signal_recordname = pyqtSignal(str)
+    
     #### MAGIC METHODS ####
     def __init__(self, *args, **kwargs):
         super(WIDGET_controls, self).__init__(*args, **kwargs)
         self.__createButtons()
-        #uic.loadUi('../ui_files/widget_streamcontrols.ui', self)
-        #self.__linkActions()
-        #self.__linkWidgets()
-        #self.__linkWindows()
-        self.mode = "Standby"
+
+        self.isStreaming = False
+        self.isRecording = False
+        
+        self.window_widths = [30,60,120,480] #number of minutes to be in frame
+        self.window_width = self.window_widths[0] #default 30 minutes
+        self.window_offset = int(0) #% of data not in frame, 0:100 ints as percent
         
     #### MANGELED METHODS #### ("private" methods)
     def __createButtons(self):
@@ -281,8 +294,6 @@ class WIDGET_controls(QtWidgets.QWidget):
         self.button_prev.setFixedWidth(50)
         self.button_prev.clicked.connect(self.__prev)
         self.button_prev.setIcon(QIcon('./icons/icon_prev.png'))
-        
-        
         self.layout.addWidget(self.button_prev)
         
         self.button_rewind = QPushButton("", self)
@@ -293,6 +304,10 @@ class WIDGET_controls(QtWidgets.QWidget):
     
         self.scrollbar = QtWidgets.QScrollBar()
         self.scrollbar.setOrientation(Qt.Horizontal)
+        self.scrollbar.setMinimum(int(0))
+        self.scrollbar.setMaximum(int(100))
+        self.scrollbar.setValue(int(100))
+        self.scrollbar.sliderReleased.connect(self.__scrollBarUpdate)
         self.layout.addWidget(self.scrollbar)
     
         self.button_ff = QPushButton("", self)
@@ -331,32 +346,136 @@ class WIDGET_controls(QtWidgets.QWidget):
         self.button_recstop.setIcon(QIcon('./icons/icon_record.png'))
         self.layout.addWidget(self.button_recstop)
     
-    def __zoomout(self):
-        pass
+    def __StreamingOn(self):
+        print("Streaming on")
+        self.isStreaming = True
+        self.window_offset = 0
+        
+        self.signal_streaming.emit(True)
+        self.signal_offset.emit(self.window_offset)
+        
+        self.scrollbar.setValue(100 - self.window_offset)
+        self.button_playpause.setIcon(QIcon('./icons/icon_pause.png'))
+    
+    def __StreamingOff(self):
+        print("Streaming off")
+        self.isStreaming = False
+        
+        self.signal_streaming.emit(False)
+        self.signal_offset.emit(self.window_offset)
+        
+        self.button_playpause.setIcon(QIcon('./icons/icon_play.png'))
+        
+    def __RecordingOn(self, filename):
+        print("Recording on")
+        self.isRecording = True           
+        
+        self.window_offset = 0
+        self.scrollbar.setValue(100 - self.window_offset)
+     
+        self.button_recstop.setIcon(QIcon('./icons/icon_stop.png'))
+        self.button_playpause.setIcon(QIcon('./icons/icon_pause.png'))
+        
+        self.signal_offset.emit(self.window_offset)
+        self.signal_recordname.emit(filename.name)
+        self.signal_recording.emit(True)
+        
+    def __RecordingOff(self):
+        print("Ending recording")
+        self.isRecording = False
+        self.signal_recording.emit(False)
+        self.button_recstop.setIcon(QIcon('./icons/icon_record.png'))
+        self.__StreamingOff()
+    
+    def __scrollBarUpdate(self):
+        self.window_offset = 100 -  self.scrollbar.value()
+        if self.isStreaming:
+            self.__StreamingOff()
+        else:
+            self.signal_offset.emit(self.window_offset)
+        print(self.window_offset)
     
     def __recstop(self):
-        pass
-    
+        print("Pressed rec", self.isRecording)
+        if self.isRecording: #check to end recording  
+            response = messagebox.askyesno('End Stream', "Are you sure you want to end the stream?")
+            if response: #returns true if "yes"
+                print("Off")
+                self.__RecordingOff()
+            else:
+                print("Cancled ending recording")
+                pass
+        else:
+            files = [('H5','.h5')]
+            filename = ""
+            while filename == "": #check if no file name given
+                filename = asksaveasfile(defaultextension=files, filetypes=files)
+                if type(filename) == type(None):
+                    print("Didn't pass, canceled")
+                elif filename.name.endswith(".h5"):    
+                    self.__RecordingOn(filename)
+                else:
+                    print("Didn't pass, bad name")
+                  
     def __playpause(self):
-        pass
-    
+        if self.isStreaming:
+            self.__StreamingOff()
+        else:
+            self.__StreamingOn()
+
     def __zoomin(self):
-        pass
-    
-    def __ff(self):
-        pass
+        index = self.window_widths.index(self.window_width)
+        
+        if index > 0:
+            self.window_width = self.window_widths[index-1]
+            self.signal_timeframe.emit(self.window_width)
+        else:
+            pass
+        
+        print(self.window_width)
+        
+    def __zoomout(self):
+        index = self.window_widths.index(self.window_width)
+        
+        if index < (len(self.window_widths)-1):
+            self.window_width = self.window_widths[index+1]
+            self.signal_timeframe.emit(self.window_width)
+        else:
+            pass
+        
+        print(self.window_width)
     
     def __prev(self):
-        pass
+        self.window_offset = self.window_offset + 10
+        if self.window_offset > 100:
+            self.window_offset = 100
+        self.signal_offset.emit(self.window_offset)
+        self.scrollbar.setValue(100 - self.window_offset)
+        print(self.window_offset)
     
     def __rewind(self):
-        pass
+        self.window_offset = self.window_offset + 5
+        if self.window_offset > 100:
+            self.window_offset = 100
+        self.signal_offset.emit(self.window_offset)
+        self.scrollbar.setValue(100 - self.window_offset)
+        print(self.window_offset)
     
-    def __zoomIn(self):
-        pass
-    
+    def __ff(self):
+        self.window_offset = self.window_offset - 5
+        if self.window_offset < 0:
+            self.window_offset = 0
+        self.signal_offset.emit(self.window_offset)
+        self.scrollbar.setValue(100 - self.window_offset)
+        print(self.window_offset)
+        
     def __next(self):
-        pass
+        self.window_offset = self.window_offset - 10
+        if self.window_offset < 0:
+            self.window_offset = 0
+        self.signal_offset.emit(self.window_offset)
+        self.scrollbar.setValue(100 - self.window_offset)
+        print(self.window_offset)
     
 #### MAIN #### (just for testing independently of everything else)
 def main():
@@ -365,7 +484,6 @@ def main():
     window = WIDGET_controls() # Create an instance of our class
     window.show()
     sys.exit(app.exec()) #program loops forever
-    
 
 if __name__ == '__main__':
     main()
