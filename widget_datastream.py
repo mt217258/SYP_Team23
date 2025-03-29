@@ -10,11 +10,12 @@ TODO List:
 #from pylsl import StreamInlet, resolve_streams
 #from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5 import QtWidgets, uic
-from pyqtgraph import PlotWidget
+from pyqtgraph import PlotWidget, mkPen
 #from PyQt5.QtCore import Qt
 #from PyQt5.QtWidgets import *
 #import pandas as pd
 import os
+import numpy as np
 
 # CUSTOM #
 from common import list_signals
@@ -25,7 +26,7 @@ from common import list_signals
 #### CLASSES ####
 class WIDGET_datastream(QtWidgets.QWidget):
     #### MAGIC METHODS ####
-    def __init__(self, *args, **kwargs):
+    def __init__(self, plot_num, *args, **kwargs):
         super(WIDGET_datastream, self).__init__(*args, **kwargs)
         
         #path = os.path.abspath(__file__)
@@ -34,6 +35,8 @@ class WIDGET_datastream(QtWidgets.QWidget):
         ui_filepath = dir_path + '/ui_files/widget_datastream.ui'
         uic.loadUi(ui_filepath, self)
         #uic.loadUi('ui_files/widget_datastream.ui', self)
+        
+        self.plot_num = plot_num
         
         self.__linkActions()
         self.__linkWidgets()
@@ -61,12 +64,40 @@ class WIDGET_datastream(QtWidgets.QWidget):
         self.combobox.addItems(list_signals)
     
     def init_graph(self):
-        self.plotLeft = self.plot_graph.plot([0],[0], name="Left Data", symbol='+', symbolSize=15)
-        self.plotRight = self.plot_graph.plot([0],[0], name="Right Data", symbol='x', symbolSize=15)
+        self.plot_graph.setLabel("bottom", "Time [s]")
+        self.plot_graph.addLegend()
+    
+        penL = mkPen(color=(255, 0, 0))
+        penR = mkPen(color=(0, 0, 255))
+        self.plotLeft = self.plot_graph.plot([0],[0], name="Left", pen=penL)
+        self.plotRight = self.plot_graph.plot([0],[0], name="Right", pen=penR)
+        
     
     def updateGraph(self, time, data_left, data_right):
-        self.plotLeft.setData(time, data_left)
-        self.plotRight.setData(time, data_right)
+        try:
+            # Convert to numpy arrays
+            x = np.array(time, dtype=np.float64)
+            y = np.array(data_left, dtype=np.float64)
+
+            # Auto-scrolling time axis
+            if len(x) > 1:
+                time_range = x[-1] - x[0]
+                self.plot_graph.setXRange(x[-1]-10, x[-1]+0.1)
+
+            self.plotLeft.setData(x,y)
+            if data_right is not None:
+                self.plotRight.setData(x, np.array(data_right))
+
+            # Enable auto-scrolling
+            self.plot_graph.enableAutoRange()
+
+        except Exception as e:
+            print(f"Plotting failed: {str(e)}")
+
+        # Update Plots
+        #self.plotLeft.setData(time_array, left_array)
+       # self.plotRight.setData(time_array, right_array)
+        #NOTE - Error when lists are empty, might be ignorable
         
 #### VULGAR METHODS #### (they have no class) 
 #TODO Will implement in frontend
@@ -78,7 +109,7 @@ class WIDGET_datastream(QtWidgets.QWidget):
 def main():
     import sys
     app = QtWidgets.QApplication(sys.argv)
-    window = WIDGET_datastream() # Create an instance of our class
+    window = WIDGET_datastream(0) # Create an instance of our class
     window.show()
     #window.updateGraph([1], [2], [3])
     sys.exit(app.exec()) #program loops forever
