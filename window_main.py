@@ -43,8 +43,11 @@ class WINDOW_main(QMainWindow):
         self.__loadViews()
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
         if not self.layout():
             self.setLayout(QVBoxLayout())
+=======
+>>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
 =======

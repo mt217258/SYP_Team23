@@ -13,7 +13,10 @@ import time
 import multiprocessing
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 import queue
+=======
+>>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
 =======
@@ -29,7 +32,10 @@ class Worker_DAQ(QObject):
         self.data_queue = q_data
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
         self.running = True
+=======
+>>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
 =======
@@ -48,6 +54,7 @@ class Worker_DAQ(QObject):
     def run(self):
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
         while self.running:
             try:
                 #pop queue and pass it through signal to front end
@@ -56,6 +63,8 @@ class Worker_DAQ(QObject):
             except queue.Empty:
                 continue 
 =======
+=======
+>>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
         while(True):
@@ -68,6 +77,9 @@ class Worker_DAQ(QObject):
             self.sendData.emit(sample) 
             
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
