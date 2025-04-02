@@ -41,17 +41,8 @@ class WINDOW_main(QMainWindow):
         self.__creatView()
         #self.__initViews()
         self.__loadViews()
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
         if not self.layout():
             self.setLayout(QVBoxLayout())
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
       
     #### MANGELED METHODS ####  
     def __openSettings(self):
