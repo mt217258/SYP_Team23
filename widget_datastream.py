@@ -66,7 +66,6 @@ class WIDGET_datastream(QtWidgets.QWidget):
     def init_graph(self):
         self.plot_graph.setLabel("bottom", "Time [s]")
         self.plot_graph.addLegend()
-    
         penL = mkPen(color=(255, 0, 0))
         penR = mkPen(color=(0, 0, 255))
         self.plotLeft = self.plot_graph.plot([0],[0], name="Left", pen=penL)

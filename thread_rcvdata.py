@@ -31,7 +31,7 @@ class Worker_DAQ(QObject):
     #sendData = pyqtSignal(list, list, list)
     
     #data = pd.DataFrame(data={"Time":[], "sEMG_L":[], "sEMG_R":[]})
-    num_samples_window = 50
+    #num_samples_window = 50
     
     def run(self):
         while self.running:
