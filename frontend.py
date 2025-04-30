@@ -21,6 +21,7 @@ from PyQt5.QtCore import QObject, QThread, pyqtSignal
 from window_main import WINDOW_main
 from thread_rcvdata import Worker_DAQ
 from common import dataselectmapping, data
+from pandas._libs import index
 #from future.backports.test.pystone import FALSE
 
 #### CLASSES ####
@@ -58,8 +59,10 @@ class FrontEnd():
         print("FE: Streaming update to: ", onoff)
         if not self.isStreaming and onoff: #streaming turned on
             self.q_commands.put("Play")
-        if not self.isStreaming and not onoff: #streaming paused
-            self.index_lastSampleBeforePause = len(self.data)
+        if not self.isStreaming: #streaming paused
+            print("Pausing stream")
+            self.index_lastSampleBeforePause = self.data.index
+            print("Pausing stream. Last index: ", self.index_lastSampleBeforePause)
         self.isStreaming = onoff
     
     def __updateFilename(self, filename):
@@ -87,15 +90,15 @@ class FrontEnd():
         self.worker_DAQ = Worker_DAQ(self.q_data) #create object to run in thread
         self.worker_DAQ.moveToThread(self.thread_DAQ) #move object to thread
         
-        self.thread_DAQ.started.connect(self.worker_DAQ.run) #when thread started, run worker's run()
-        #self.thread_DAQ.started.connect(self.worker_DAQ.test_run) #used for testing
+        #self.thread_DAQ.started.connect(self.worker_DAQ.run) #when thread started, run worker's run()
+        self.thread_DAQ.started.connect(self.worker_DAQ.test_run) #used for testing
 
         self.worker_DAQ.sendData.connect(self.__getData) #link pyqt signals
         
         self.thread_DAQ.start()
         
     def __getData(self, sample):
-        self.data = pd.concat([self.data, sample])
+        self.data = pd.concat([self.data, sample], ignore_index=True)
         #TODO - downsample data
         if self.isStreaming:
             self.updateGraphs() 
@@ -121,8 +124,50 @@ class FrontEnd():
     def accumulateData(self, dataSet):
         pass
     
-    def updateGraphs(self):
-        #TODO - window data
+    def updateWindowIndices(self):
+        datalength = len(self.data["Time"])
+        if self.isStreaming: #not paused
+            self.index_end = datalength - 1
+            window_size = 1
+            match self.window_width:
+                case 30:
+                    window_size = 500 
+                case 60:
+                    window_size = 750
+                case 120:
+                    window_size = 1000
+                case 480:
+                    window_size = 1250
+            self.index_start = self.index_end - window_size  
+            
+        else: #stream paused
+            print("Stream paused")
+            #print(self.data["Time"])
+            self.startTime = self.data["Time"][0]
+            print("Pause Start: ", self.data["Time"][self.startTime])
+            print("All time: ", self.data["Time"])
+            self.endTime = self.data["Time"][self.index_lastSampleBeforePause]
+            print("Pause End: ", self.endTime)
+            self.timeDiff = self.endTime - self.startTime - self.window_width*60 #time not on screen in s
+            
+            self.offset_s = self.timeDiff * (float(self.window_offset)/100.0)
+            
+            print("Window Start time: ", (self.endTime - self.window_width*60 - self.offset_s))
+            print("Window End time: ", (self.endTime - self.offset_s))
+            
+            for index, thyme in enumerate(self.data["Time"]):
+                if thyme > (self.endTime - self.window_width*60 - self.offset_s):
+                    self.index_start = index
+                    break
+            
+            for index, thyme in enumerate(self.data["Time"]):
+                if thyme > (self.endTime - self.offset_s):
+                    self.index_end = index
+                    break
+            
+    
+    def updateGraphs(self):   
+        self.updateWindowIndices()
         
         #currentTabview = self.mainwindow.widget_tabs.currentIndex() #grab index of tab in view
         currentTab = self.mainwindow.widget_tabs.currentWidget()  #grab that tab
@@ -130,7 +175,9 @@ class FrontEnd():
             data2plot = plot.combobox.currentText() #what should this graph show
             left_data, right_data = dataselectmapping[data2plot]
             #print(left_data, self.data[left_data])
-            plot.updateGraph(self.data["Time"], self.data[left_data], self.data[right_data])
+            plot.updateGraph(self.data["Time"][self.index_start:self.index_end], 
+                             self.data[left_data][self.index_start:self.index_end], 
+                             self.data[right_data][self.index_start:self.index_end])
         
     def sendCommand(self, command):
         pass

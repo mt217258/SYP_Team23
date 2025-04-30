@@ -184,7 +184,7 @@ class WIDGET_controls(QtWidgets.QWidget):
         
         if index > 0:
             self.window_width = self.window_widths[index-1]
-            self.signal_timeframe.emit(self.window_width)
+            self.signal_width.emit(self.window_width)
         else:
             pass
         
@@ -195,7 +195,7 @@ class WIDGET_controls(QtWidgets.QWidget):
         
         if index < (len(self.window_widths)-1):
             self.window_width = self.window_widths[index+1]
-            self.signal_timeframe.emit(self.window_width)
+            self.signal_width.emit(self.window_width)
         else:
             pass
         
