@@ -53,7 +53,7 @@ class Worker_DAQ(QObject):
             count += 1
             #self.windowData()
             #self.sendData.emit(list(self.data["Time"]), list(self.data["sEMG_L"]), list(self.data["sEMG_R"]))
-            print("Backend sending: ", sample)
+            #print("Backend sending: ", sample)
             self.sendData.emit(sample)
             
             #self.sendData.emit()
