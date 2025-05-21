@@ -185,9 +185,6 @@ class FrontEnd():
             print("Window Start time: ", self.data["Time"].iloc[self.index_start])
             print("Window End time: ", self.data["Time"].iloc[self.index_end-1])
             
-            
-    
-    
     def updateGraphs(self): 
         print("Updating plots")  
         self.updateWindowIndices()
