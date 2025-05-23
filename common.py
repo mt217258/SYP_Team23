@@ -31,3 +31,5 @@ dataselectmapping = {"raw-sEMG":["raw-sEMG_L", "raw-sEMG_R"],
                      "SCRA-EDA":["SCRA-EDA_L","SCRA-EDA_R"]}
 
 num_dataPointsInPlot = 1000
+
+commands_sensors = ["Stream", "Stop", "Reconnect"]

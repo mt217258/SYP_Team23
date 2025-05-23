@@ -20,8 +20,9 @@ from pylsl import StreamInlet, resolve_streams
 import pandas as pd
 import multiprocessing
 from math import sqrt, pow
-
+import time
 import traceback
+
 # CUSTOM #
 
 #### CLASSES ####
@@ -44,29 +45,19 @@ class Sensor():
         self.__findStream()
         
         self.blankData = pd.DataFrame()
-        self.__buildBlankFrame()
+        #self.__buildBlankFrame()
         self.indexmapping = {} #dict for mapping meas using index
         self.__findDataIndices()
     
     def __findDataIndices(self): #build map for mapping data later into DataFrame
         if self.stream:
-            possible_labels = ["EMG0", "gACC1", "gACC2", "gACC3", "EDABITREV0"]
+            possible_labels = ["EMG0", "gACC1", "gACC2", "gACC3", "RAW0"]
             channel_labels = self.inlet.info().get_channel_labels()
             
             for label in possible_labels:
                 if label in channel_labels: 
                     self.indexmapping[label] = channel_labels.index(label)
-                
-    def __buildBlankFrame(self):
-        self.blankData["Time"] = []
-        
-        match self.type:
-            case "sEMG":
-                self.blankData[f"raw-sEMG_{self.side}"] = []
-                self.blankData[f"raw-ACC_{self.side}"] = []
-            case "EDA":
-                self.blankData[f"raw-EDA_{self.side}"] = []
-    
+                    
     def __findStream(self):
         print("Looking for stream for MAC:", self.MAC)
         self.stream = False
@@ -84,14 +75,19 @@ class Sensor():
             print("Stream not found for MAC: ", self.MAC)
     
     def __processCommand(self):
-        pass
-        '''
-        command = self.q_commandIn.
+        command = self.q_commandIn.get(timeout=0.1)
+    
+        print("Rx'd command: ", command)
     
         match command:
-            case :
-                pass
-        '''
+            case "Stream":
+                self.isStreaming = True
+            case "Stop":
+                self.isStreaming = False
+            case "Reconnect":
+                self.__findStream()
+            case _:
+                print("Unknown command: ", command)       
    
     def __mapChunkToDataFrame(self, rawData):
         #print("Mapping chunk")
@@ -121,7 +117,7 @@ class Sensor():
                     acc = sqrt(pow(accX,2) + pow(accY,2) + pow(accZ,2))
                     blankDict[f"raw-ACC_{self.side}"].append(acc)
                 case "EDA":
-                    blankDict[f"raw-EDA_{self.side}"].append(sample[self.indexmapping["EDABITREV0"]])
+                    blankDict[f"raw-EDA_{self.side}"].append(sample[self.indexmapping["RAW0"]])
                 case _:
                     print("Unknown sensor type")    
             
@@ -147,7 +143,7 @@ class Sensor():
                 
                 blankDict[f"raw-ACC_{self.side}"] = acc
             case "EDA":
-                blankDict[f"raw-EDA_{self.side}"] = sample[self.indexmapping["EDABITREV0"]]
+                blankDict[f"raw-EDA_{self.side}"] = sample[self.indexmapping["RAW0"]]
             case _:
                 print("Unknown sensor type")
         
@@ -159,6 +155,7 @@ class Sensor():
             try:
                 rawSample = self.inlet.pull_sample()
                 #print("rawSample: ", rawSample)
+                #time.sleep(1)
                 sample = self.__mapSampleToDataFrame(rawSample)
                 return sample
             except:
@@ -186,32 +183,78 @@ class Sensor():
         while(self.notDead):
             if self.stream: #does the stream exist
                 if not self.q_commandIn.empty(): #if there is a command
+                    print(self.name, ": Command received")
                     self.__processCommand()
-                if self.isStreaming(): 
-                    self.q_dataOut.put(self.getChunk()) #get data and send to metrics
+                if self.isStreaming: 
+                    #self.q_dataOut.put(self.getChunk()) #get data and send to metrics
+                    print("Sample: ", self.getSample())
+            else:
+                print(self.name, ": Not streaming")
+                time.sleep(1)
+                    
 
 #### VULGAR METHODS #### (they have no class)
-def thread_sensor(side, sensorType, MAC, q_commandIn, q_dataOut):
-    sensor = Sensor(side, sensorType, MAC, q_commandIn, q_dataOut)
-    sensor.start()
- 
-#### MAIN #### (just for testing independently of everything else)
-def main():
-    side = "L"
-    sensorType = "sEMG"
-    MAC = "58:8E:81:A2:48:D3"
-    q_commandIn = multiprocessing.Queue()
-    q_dataOut = multiprocessing.Queue()
+def make_thread_sensor( side:str, sensorType:str, MAC:str, 
+                        q_commandIn:multiprocessing.Queue, 
+                        q_dataOut:multiprocessing.Queue):
+    
+    #print("Inputs are: ", side, sensorType, MAC, q_commandIn, q_dataOut)
     
     sensor = Sensor(side, sensorType, MAC, q_commandIn, q_dataOut)
+    #sensor.isStreaming = True #TODO - remove after command handling added
+    sensor.start()
     
     #print("Sample: ", sensor.getSample())
     #print("Chunk: ", sensor.getChunk())
-    #TODO - move sensor into a thread
+ 
+#### MAIN #### (just for testing independently of everything else)
+def main():
+    print("Sensor: Starting Main")
+    MACs = ["58:8E:81:A2:48:D3", "60:77:71:82:92:C9", "58:8E:81:A2:49:02","5C:02:72:9F:4E:4C" ]
+    sides = ["L", "L", "R", "R"]
+    sensorTypes = ["sEMG", "EDA", "sEMG", "EDA"]
+    
+    selection = 1 #for picking which snesor to connect to
+    
+    #side = "L"
+    #sensorType = "sEMG"
+    #MAC = "58:8E:81:A2:48:D3"
+    q_commandIn = multiprocessing.Queue()
+    q_dataOut = multiprocessing.Queue()
+    
+    #sensor = Sensor(side, sensorType, MAC, q_commandIn, q_dataOut)
+    #print("Sample: ", sensor.getSample())
+    #print("Chunk: ", sensor.getChunk())
+
+    print("Inputs are: ",   sides[selection], sensorTypes[selection], 
+                            MACs[selection], q_commandIn, q_dataOut)
 
     import threading
-    thread_sensor_test = threading.Thread()
+    thread_sensor_test = threading.Thread(target=make_thread_sensor, args=(sides[selection], sensorTypes[selection], MACs[selection], q_commandIn, q_dataOut,), daemon=True)
+    thread_sensor_test.start()
     
+    import keyboard
+    
+    while True:
+        readKey = keyboard.read_key()
+        time.sleep(2)
+        
+        match readKey:
+            case "esc":
+                break
+            case "1": 
+                print("Sending message: Stream")
+                q_commandIn.put("Stream")
+            case "2": 
+                print("Sending message: Stop")
+                q_commandIn.put("Stop")
+            case "3": 
+                print("Sending message: Reconnect")
+                q_commandIn.put("Reconnect")
+            case _:
+                print("Unknown key press: ", readKey)     
+
+    print("Sensor: Ending Main")
 
 if __name__ == '__main__':
     main()

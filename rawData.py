@@ -7,12 +7,12 @@ TODO List:
 
 #### LIBRARIES ####
 # OFF THE SHELF #
-from pylsl import StreamInlet, resolve_streams
-import xml.etree.ElementTree as ET  # Parsing channel data
+#from pylsl import StreamInlet, resolve_streams
+#import xml.etree.ElementTree as ET  # Parsing channel data
 import configparser
 import pandas as pd
 import queue
-from matplotlib import streamplot
+#from matplotlib import streamplot
 #from future.backports.test.pystone import TRUE
 # CUSTOM #
 
