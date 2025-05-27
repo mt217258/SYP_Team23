@@ -28,7 +28,7 @@ import traceback
 #### CLASSES ####
 class Sensor():
     #### MAGIC METHODS ####
-    def __init__(self, side, sensorType, MAC, q_commandIn, q_dataOut):
+    def __init__(self, side, sensorType, MAC, chunksize, q_commandIn, q_dataOut):
         self.side = side
         self.type = sensorType
         self.name =  f"{self.type}_{self.side}" 
@@ -39,7 +39,7 @@ class Sensor():
         self.isStreaming = False
         self.notDead = True
         
-        self.chunksize = 5
+        self.chunksize = chunksize
         self.streamTimeout = 1
         
         self.__findStream()
@@ -194,13 +194,14 @@ class Sensor():
                     
 
 #### VULGAR METHODS #### (they have no class)
-def make_thread_sensor( side:str, sensorType:str, MAC:str, 
+def make_thread_sensor( side:str, sensorType:str, MAC:str,
+                        chunksize:int, 
                         q_commandIn:multiprocessing.Queue, 
                         q_dataOut:multiprocessing.Queue):
     
     #print("Inputs are: ", side, sensorType, MAC, q_commandIn, q_dataOut)
     
-    sensor = Sensor(side, sensorType, MAC, q_commandIn, q_dataOut)
+    sensor = Sensor(side, sensorType, MAC, chunksize, q_commandIn, q_dataOut)
     #sensor.isStreaming = True #TODO - remove after command handling added
     sensor.start()
     
@@ -213,6 +214,7 @@ def main():
     MACs = ["58:8E:81:A2:48:D3", "60:77:71:82:92:C9", "58:8E:81:A2:49:02","5C:02:72:9F:4E:4C" ]
     sides = ["L", "L", "R", "R"]
     sensorTypes = ["sEMG", "EDA", "sEMG", "EDA"]
+    chunksize = 5
     
     selection = 1 #for picking which snesor to connect to
     
@@ -222,7 +224,7 @@ def main():
     q_commandIn = multiprocessing.Queue()
     q_dataOut = multiprocessing.Queue()
     
-    #sensor = Sensor(side, sensorType, MAC, q_commandIn, q_dataOut)
+    #sensor = Sensor(side, sensorType, MAC, chunksize, q_commandIn, q_dataOut)
     #print("Sample: ", sensor.getSample())
     #print("Chunk: ", sensor.getChunk())
 
@@ -230,7 +232,7 @@ def main():
                             MACs[selection], q_commandIn, q_dataOut)
 
     import threading
-    thread_sensor_test = threading.Thread(target=make_thread_sensor, args=(sides[selection], sensorTypes[selection], MACs[selection], q_commandIn, q_dataOut,), daemon=True)
+    thread_sensor_test = threading.Thread(target=make_thread_sensor, args=(sides[selection], sensorTypes[selection], MACs[selection], chunksize, q_commandIn, q_dataOut,), daemon=True)
     thread_sensor_test.start()
     
     import keyboard

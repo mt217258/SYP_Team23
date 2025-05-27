@@ -11,30 +11,84 @@ TODO List:
 #import xml.etree.ElementTree as ET  # Parsing channel data
 import configparser
 import pandas as pd
-import queue
+import multiprocessing
+import threading
 #from matplotlib import streamplot
 #from future.backports.test.pystone import TRUE
 # CUSTOM #
+from sensor import make_thread_sensor
 
+#### CLASSES ####
 class RawData():
     #### MAGIC METHODS ####
     def __init__(self, q_rawData, q_commandsForRawData, q_settingsForRawData):
-        #link main queues
-        print("rD - Hello World")
         self.q_send_RawData = q_rawData
         self.q_rcv_commandsForRawData = q_commandsForRawData
         self.q_rcv_q_settingsForRawData = q_settingsForRawData
         
         self.isStreaming = False
-        self.settings = configparser.ConfigParser()
+        self.settings = q_settingsForRawData.get()
     
         self.__linkThreads()
     
+    #### MANGELED METHODS ####
     def __linkThreads(self):
-        pass
+        #Create a thread for each sensor to pull in raw data
+        self.queues_commands = []
+        self.queues_data = []
+        for index in range(4): #update for sensor arranements with more sensors
+            self.queues_commands.append(multiprocessing.Queue())
+            self.queues_data.append(multiprocessing.Queue())
+        
+        self.threads = []
+        
+        sensor_config = {"sides":["L", "L", "R", "R"],
+                         "sensorTypes":["sEMG", "EDA", "sEMG", "EDA"],
+                         "settings":['L_MuscleBan', 'L_EDA', 'R_MuscleBan', 'R_EDA']}
+        
+        for index in range(4):
+            print("Creating thread for MAC: ", self.settings[sensor_config["settings"][index]]['mac'])
+            self.threads.append(threading.Thread(target=make_thread_sensor,
+                                                 args=(sensor_config["sides"][index], 
+                                                       sensor_config["sensorTypes"][index],
+                                                       self.settings[sensor_config["settings"][index]]['mac'], #ugly
+                                                       self.settings['Default']['chunksize'],
+                                                       self.queues_commands[index],
+                                                       self.queues_data[index]
+                                                       ),
+                                                 daemon=True #will close thread if parent stops
+                                                 )
+                                )
+        
+        self.thread_test = threading.Thread(target=make_test_thread,   #TODO - comment out after testing
+                                            args=(self.q_rcv_commandsForRawData),
+                                            daemon=True
+                                            )
+                       
+    def __processCommand(self):
+        command = self.q_commandsForRawData.get(timeout=0.1)
+        
+        print("Rx'd command: ", command)
     
+        match command:
+            case "Stream":
+                self.isStreaming = True
+                for q in self.queues_commands:
+                    q.put(command)
+            case "Stop":
+                self.isStreaming = False
+                for q in self.queues_commands:
+                    q.put(command)
+            case "Update": #update based on new settings        
+                pass 
+            case _:
+                print("Unknown command: ", command)  
+    
+    #### MUGGLE METHODS #### 
     def start(self):
-        pass
+        self.thread_test.start() #TODO - comment out after testing
+        
+        
     
     '''    
     def __findStreams(self): #find OS streams
@@ -107,8 +161,8 @@ class RawData():
         self.thread_queues = []
         
         self.__findStreams()
-    '''
-        '''
+    
+        
         while self.running:
             if not self.q_rcv_commandsForRawData.empty(): #check for command
                 self.readCommand()
@@ -116,7 +170,7 @@ class RawData():
                 if self.isStreaming: 
                     #self.data = self.collectData()
                     #self.q_rcv_q_settingsForRawData.put(self.data)
-        '''
+        
         
     def collectData(self):
         temp_data = pd.DataFrame()
@@ -140,11 +194,6 @@ class RawData():
     
     #### THREADS ####
     
-    
-    #### MANGELED METHODS ####
-    
-    
-    '''
     def _parse_xml(self, xml_string, stream_index):
         root = ET.fromstring(xml_string)
         mac_element = root.find(".//type")
@@ -222,12 +271,46 @@ class RawData():
                 traceback.print_exc()
                 time.sleep(0.1)
     '''
-    #### MUGGLE METHODS #### 
+
+#### VULGAR METHODS #### they have no class
+def make_test_thread(q_commandsForRawData):
+    import keyboard, time
+    while True:
+        readKey = keyboard.read_key()
+        time.sleep(1)
+        
+        match readKey:
+            case "esc":
+                break
+            case "1": 
+                print("Sending message: Stream")
+                q_commandsForRawData.put("Stream")
+            case "2": 
+                print("Sending message: Stop")
+                q_commandsForRawData.put("Stop")
+            case _:
+                print("Unknown key press: ", readKey)   
     
         
 #### MAIN #### (just for testing independently of everything else)
 def main():
-    pass
+    config = configparser.ConfigParser()
+    config.read("config.ini")
+    
+    print(config['L_MuscleBan']['mac'])
+    #print("Chunksize is: ", config['Default']['chunksize'])
+    
+    q_rawData = multiprocessing.Queue()
+    q_commandsForRawData = multiprocessing.Queue()
+    q_settingsForRawData = multiprocessing.Queue()
+    
+    q_settingsForRawData.put(config)
+    
+    #def __init__(self, q_rawData, q_commandsForRawData, q_settingsForRawData):
+    test = RawData(q_rawData, q_commandsForRawData, q_settingsForRawData)
+    test.start()
+         
+    print("Sensor: Ending Main")
 
 if __name__ == '__main__':
     main()
