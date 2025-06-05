@@ -1,7 +1,7 @@
 '''
-Author:             Matthew McLaughlin
+Author:             Matthew McLaughlin/Will Thornton
 Contact:            
-Description:        Backend component to manage data collection
+Description:        Backend component to manage data collection - Simulation
 TODO List:  
 
 Notes
@@ -16,17 +16,17 @@ Notes
 
 #### LIBRARIES ####
 # OFF THE SHELF #
-from pylsl import StreamInlet, resolve_streams
+#from pylsl import StreamInlet, resolve_streams
 import pandas as pd
 import multiprocessing
-from math import sqrt, pow
+from math import sqrt, pow, sin, pi
 import time
 import traceback
 
 # CUSTOM #
 
 #### CLASSES ####
-class Sensor():
+class Sensor_sim():
     #### MAGIC METHODS ####
     def __init__(self, side, sensorType, MAC, chunksize, q_commandIn, q_dataOut):
         self.side = side
@@ -42,9 +42,11 @@ class Sensor():
         self.chunksize = chunksize
         self.streamTimeout = 1
         
-        self.__findStream()
+        #self.__findStream()
+        self.stream = True
+        self.time = 0
         
-        self.blankData = pd.DataFrame()
+        #self.blankData = pd.DataFrame()
         #self.__buildBlankFrame()
         self.indexmapping = {} #dict for mapping meas using index
         self.__findDataIndices()
@@ -53,12 +55,18 @@ class Sensor():
     def __findDataIndices(self): #build map for mapping data later into DataFrame
         if self.stream:
             possible_labels = ["EMG0", "gACC1", "gACC2", "gACC3", "RAW0"]
-            channel_labels = self.inlet.info().get_channel_labels()
+            #channel_labels = self.inlet.info().get_channel_labels()
+            match self.type:
+                case "sEMG":
+                    channel_labels = ["EMG0", "gACC1", "gACC2", "gACC3"]
+                case "EDA":
+                    channel_labels = ["RAW0"]
             
             for label in possible_labels:
                 if label in channel_labels: 
                     self.indexmapping[label] = channel_labels.index(label)
-                    
+    
+    '''                
     def __findStream(self):
         print("Looking for stream for MAC:", self.MAC)
         self.stream = False
@@ -74,11 +82,12 @@ class Sensor():
         
         if not self.stream: #check if stream exists
             print("Stream not found for MAC: ", self.MAC)
+    '''
     
     def __processCommand(self):
         command = self.q_commandIn.get(timeout=0.1)
     
-        print("Rx'd command: ", command)
+        print(self.name, ": Rx'd command: ", command)
     
         match command:
             case "Stream":
@@ -87,6 +96,10 @@ class Sensor():
                 self.isStreaming = False
             case "Reconnect":
                 self.__findStream()
+            case "Sample":
+                self.q_dataOut.put(self.getSample())
+            case "Chunk":
+                self.q_dataOut.put(self.getChunk())
             case _:
                 print("Unknown command: ", command)       
    
@@ -155,7 +168,16 @@ class Sensor():
     def getSample(self):
         if self.stream:
             try:
-                rawSample = self.inlet.pull_sample()
+                #rawSample = self.inlet.pull_sample()
+                match self.type:
+                    case "sEMG":
+                        rawSample = [[sin(2*pi*self.time/50), sin(2*pi*self.time/50+1), 
+                                      sin(2*pi*self.time/50+2), sin(2*pi*self.time/50+3)], self.time]
+                    case "EDA":
+                        rawSample = [[sin(2*pi*self.time/50)], self.time]
+                
+                self.time = self.time + 1
+                
                 #print("rawSample: ", rawSample)
                 #time.sleep(1)
                 sample = self.__mapSampleToDataFrame(rawSample)
@@ -170,7 +192,20 @@ class Sensor():
     def getChunk(self):
         if self.stream:
             try:
-                rawChunk = self.inlet.pull_chunk(self.streamTimeout, self.chunksize)
+                #rawChunk = self.inlet.pull_chunk(self.streamTimeout, self.chunksize)
+                rawChunk = [[],[]]
+                for sample in range(self.chunksize):
+                    match self.type:
+                        case "sEMG":
+                            rawChunk[0].append([    sin(2*pi*self.time/50), sin(2*pi*self.time/50+1), 
+                                                    sin(2*pi*self.time/50+2), sin(2*pi*self.time/50+3)])
+                        case "EDA":
+                            rawChunk[0].append([sin(2*pi*self.time/50)])
+                    
+                    rawChunk[1].append([self.time])
+                    self.time = self.time + 1
+                
+                rawChunk
                 chunk = self.__mapChunkToDataFrame(rawChunk)
                 return chunk
             except:
@@ -182,13 +217,16 @@ class Sensor():
             return None
 
     def start(self):
+        print("Sim thread started: ", self.name)
         while(self.notDead):
             if self.stream: #does the stream exist
                 if not self.q_commandIn.empty(): #if there is a command
                     print(self.name, ": Command received")
                     self.__processCommand()
-                if self.isStreaming: 
-                    self.q_dataOut.put(self.getChunk()) #get data and send to metrics
+                if self.isStreaming:
+                    data = self.getChunk()
+                    print(self.name, ": Sending: ", data)
+                    self.q_dataOut.put(data) #get data and send to metrics
                     #print("Sample: ", self.getSample())
             else:
                 print(self.name, ": Not streaming")
@@ -203,7 +241,7 @@ def make_thread_sensor( side:str, sensorType:str, MAC:str,
     
     #print("Inputs are: ", side, sensorType, MAC, q_commandIn, q_dataOut)
     
-    sensor = Sensor(side, sensorType, MAC, chunksize, q_commandIn, q_dataOut)
+    sensor = Sensor_sim(side, sensorType, MAC, chunksize, q_commandIn, q_dataOut)
     #sensor.isStreaming = True #TODO - remove after command handling added
     sensor.start()
     
@@ -218,7 +256,7 @@ def main():
     sensorTypes = ["sEMG", "EDA", "sEMG", "EDA"]
     chunksize = 5
     
-    selection = 1 #for picking which snesor to connect to
+    selection = 0 #for picking which snesor to connect to
     
     #side = "L"
     #sensorType = "sEMG"
@@ -234,12 +272,7 @@ def main():
                             MACs[selection], q_commandIn, q_dataOut)
 
     import threading
-    thread_sensor_test = threading.Thread(  target=make_thread_sensor, 
-                                            args=(sides[selection], sensorTypes[selection], 
-                                                  MACs[selection], chunksize, 
-                                                  q_commandIn, q_dataOut,), 
-                                            daemon=True
-                                          )
+    thread_sensor_test = threading.Thread(target=make_thread_sensor, args=(sides[selection], sensorTypes[selection], MACs[selection], chunksize, q_commandIn, q_dataOut,), daemon=True)
     thread_sensor_test.start()
     
     import keyboard

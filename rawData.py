@@ -13,10 +13,11 @@ import configparser
 import pandas as pd
 import multiprocessing
 import threading
-#from matplotlib import streamplot
-#from future.backports.test.pystone import TRUE
+
 # CUSTOM #
-from sensor import make_thread_sensor
+#from sensor import make_thread_sensor
+from sensor_sim import make_thread_sensor #for testing purposes
+from aggregate_data import make_thread_AggregateData
 
 #### CLASSES ####
 class RawData():
@@ -27,6 +28,8 @@ class RawData():
         self.q_rcv_q_settingsForRawData = q_settingsForRawData
         
         self.isStreaming = False
+        self.notDead = True
+        
         self.settings = q_settingsForRawData.get()
     
         self.__linkThreads()
@@ -36,7 +39,7 @@ class RawData():
         #Create a thread for each sensor to pull in raw data
         self.queues_commands = []
         self.queues_data = []
-        for index in range(4): #update for sensor arranements with more sensors
+        for index in range(4+1): #update for sensor arranements with more sensors
             self.queues_commands.append(multiprocessing.Queue())
             self.queues_data.append(multiprocessing.Queue())
         
@@ -58,13 +61,14 @@ class RawData():
                                                        ),
                                                  daemon=True #will close thread if parent stops
                                                  )
-                                )
-        
-        self.thread_test = threading.Thread(target=make_test_thread,   #TODO - comment out after testing
-                                            args=(self.q_rcv_commandsForRawData),
-                                            daemon=True
-                                            )
-                       
+                                ) 
+            
+        self.threads.append(threading.Thread(   target=make_thread_AggregateData,
+                                                args=(self.queues_data, self.queues_commands[-1],),
+                                                daemon=True
+                                             )
+                            )                    
+    
     def __processCommand(self):
         command = self.q_commandsForRawData.get(timeout=0.1)
         
@@ -80,16 +84,24 @@ class RawData():
                 for q in self.queues_commands:
                     q.put(command)
             case "Update": #update based on new settings        
-                pass 
+                pass #TODO
+            case "Shutdown":       
+                for thred in self.threads:
+                    thred.join()
+                self.notDead = False
             case _:
                 print("Unknown command: ", command)  
     
     #### MUGGLE METHODS #### 
     def start(self):
-        self.thread_test.start() #TODO - comment out after testing
+        for thred in self.threads:
+            thred.start())
         
-        
-    
+        while(self.notDead):
+            if not self.q_commandIn.empty(): #if there is a command
+                print(self.name, ": Command received")
+                self.__processCommand()
+
     '''    
     def __findStreams(self): #find OS streams
         all_streams = resolve_streams()
@@ -273,25 +285,7 @@ class RawData():
     '''
 
 #### VULGAR METHODS #### they have no class
-def make_test_thread(q_commandsForRawData):
-    import keyboard, time
-    while True:
-        readKey = keyboard.read_key()
-        time.sleep(1)
-        
-        match readKey:
-            case "esc":
-                break
-            case "1": 
-                print("Sending message: Stream")
-                q_commandsForRawData.put("Stream")
-            case "2": 
-                print("Sending message: Stop")
-                q_commandsForRawData.put("Stop")
-            case _:
-                print("Unknown key press: ", readKey)   
     
-        
 #### MAIN #### (just for testing independently of everything else)
 def main():
     config = configparser.ConfigParser()
@@ -308,8 +302,27 @@ def main():
     
     #def __init__(self, q_rawData, q_commandsForRawData, q_settingsForRawData):
     test = RawData(q_rawData, q_commandsForRawData, q_settingsForRawData)
-    test.start()
-         
+    
+    import keyboard, time
+
+    while True:
+        readKey = keyboard.read_key()
+        time.sleep(0.5)
+        
+        match readKey:
+            case "esc":
+                print("Ending rawData test")
+                q_commandsForRawData.put("Stop")
+                break
+            case "1": 
+                print("Sending message: Stream")
+                q_commandsForRawData.put("Stream")
+            case "2": 
+                print("Sending message: Stop")
+                q_commandsForRawData.put("Stop")
+            case _:
+                print("Unknown key press: ", readKey)    
+    
     print("Sensor: Ending Main")
 
 if __name__ == '__main__':
