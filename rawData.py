@@ -95,7 +95,7 @@ class RawData():
     #### MUGGLE METHODS #### 
     def start(self):
         for thred in self.threads:
-            thred.start())
+            thred.start()
         
         while(self.notDead):
             if not self.q_commandIn.empty(): #if there is a command

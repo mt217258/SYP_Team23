@@ -143,7 +143,7 @@ class Sensor_sim():
         blankDict = {}
         
         sample = rawData[0]
-        blankDict["Time"] = [rawData[1]]
+        blankDict["Time"] = rawData[1]
                 
         match self.type:
             case "sEMG":
@@ -166,55 +166,48 @@ class Sensor_sim():
     
     #### MUGGLE METHODS #### 
     def getSample(self):
-        if self.stream:
-            try:
-                #rawSample = self.inlet.pull_sample()
-                match self.type:
-                    case "sEMG":
-                        rawSample = [[sin(2*pi*self.time/50), sin(2*pi*self.time/50+1), 
-                                      sin(2*pi*self.time/50+2), sin(2*pi*self.time/50+3)], self.time]
-                    case "EDA":
-                        rawSample = [[sin(2*pi*self.time/50)], self.time]
-                
-                self.time = self.time + 1
-                
-                #print("rawSample: ", rawSample)
-                #time.sleep(1)
-                sample = self.__mapSampleToDataFrame(rawSample)
-                return sample
-            except:
-                print("Sample request failed")
-                return None    
-        else:
-            print("Stream not found")
-            return None
+        try:
+            #rawSample = self.inlet.pull_sample()
+            match self.type:
+                case "sEMG":
+                    rawSample = [[sin(2*pi*self.time/50), sin(2*pi*self.time/50+1), 
+                                  sin(2*pi*self.time/50+2), sin(2*pi*self.time/50+3)], self.time]
+                case "EDA":
+                    rawSample = [[sin(2*pi*self.time/50)], self.time]
+            
+            self.time = self.time + 1
+            
+            #print("rawSample: ", rawSample)
+            #time.sleep(1)
+            sample = self.__mapSampleToDataFrame(rawSample)
+            return sample
+        except:
+            print("Sample request failed")
+            return None    
+        
     
     def getChunk(self):
-        if self.stream:
-            try:
-                #rawChunk = self.inlet.pull_chunk(self.streamTimeout, self.chunksize)
-                rawChunk = [[],[]]
-                for sample in range(self.chunksize):
-                    match self.type:
-                        case "sEMG":
-                            rawChunk[0].append([    sin(2*pi*self.time/50), sin(2*pi*self.time/50+1), 
-                                                    sin(2*pi*self.time/50+2), sin(2*pi*self.time/50+3)])
-                        case "EDA":
-                            rawChunk[0].append([sin(2*pi*self.time/50)])
-                    
-                    rawChunk[1].append([self.time])
-                    self.time = self.time + 1
+        try:
+            #rawChunk = self.inlet.pull_chunk(self.streamTimeout, self.chunksize)
+            rawChunk = [[],[]]
+            for sample in range(self.chunksize):
+                match self.type:
+                    case "sEMG":
+                        rawChunk[0].append([    sin(2*pi*self.time/50), sin(2*pi*self.time/50+1), 
+                                                sin(2*pi*self.time/50+2), sin(2*pi*self.time/50+3)])
+                    case "EDA":
+                        rawChunk[0].append([sin(2*pi*self.time/50)])
                 
-                rawChunk
-                chunk = self.__mapChunkToDataFrame(rawChunk)
-                return chunk
-            except:
-                print("Chunk request failed")
-                traceback.print_exc()
-                return None 
-        else:
-            print("Stream not found")
-            return None
+                rawChunk[1].append(self.time)
+                self.time = self.time + 1
+            
+            rawChunk
+            chunk = self.__mapChunkToDataFrame(rawChunk)
+            return chunk
+        except:
+            print("Chunk request failed")
+            traceback.print_exc()
+            return None 
 
     def start(self):
         print("Sim thread started: ", self.name)
@@ -225,7 +218,7 @@ class Sensor_sim():
                     self.__processCommand()
                 if self.isStreaming:
                     data = self.getChunk()
-                    print(self.name, ": Sending: ", data)
+                    #print(self.name, ": Sending: ", data)
                     self.q_dataOut.put(data) #get data and send to metrics
                     #print("Sample: ", self.getSample())
             else:
@@ -243,7 +236,11 @@ def make_thread_sensor( side:str, sensorType:str, MAC:str,
     
     sensor = Sensor_sim(side, sensorType, MAC, chunksize, q_commandIn, q_dataOut)
     #sensor.isStreaming = True #TODO - remove after command handling added
-    sensor.start()
+    #sensor.start()
+    
+    chunk = sensor.getChunk()
+    #print(sensor.name, ": Sending chunk: ", chunk)
+    sensor.q_dataOut.put(chunk)
     
     #print("Sample: ", sensor.getSample())
     #print("Chunk: ", sensor.getChunk())
@@ -264,7 +261,7 @@ def main():
     q_commandIn = multiprocessing.Queue()
     q_dataOut = multiprocessing.Queue()
     
-    #sensor = Sensor(side, sensorType, MAC, chunksize, q_commandIn, q_dataOut)
+    #sensor = Sensor_sim(side, sensorType, MAC, chunksize, q_commandIn, q_dataOut)
     #print("Sample: ", sensor.getSample())
     #print("Chunk: ", sensor.getChunk())
 

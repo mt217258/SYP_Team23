@@ -130,7 +130,7 @@ class Sensor():
         blankDict = {}
         
         sample = rawData[0]
-        blankDict["Time"] = [rawData[1]]
+        blankDict["Time"] = rawData[1]
                 
         match self.type:
             case "sEMG":
@@ -153,33 +153,26 @@ class Sensor():
     
     #### MUGGLE METHODS #### 
     def getSample(self):
-        if self.stream:
-            try:
-                rawSample = self.inlet.pull_sample()
-                #print("rawSample: ", rawSample)
-                #time.sleep(1)
-                sample = self.__mapSampleToDataFrame(rawSample)
-                return sample
-            except:
-                print("Sample request failed")
-                return None    
-        else:
-            print("Stream not found")
-            return None
-    
+        try:
+            rawSample = self.inlet.pull_sample()
+            #print("rawSample: ", rawSample)
+            #time.sleep(1)
+            sample = self.__mapSampleToDataFrame(rawSample)
+            return sample
+        except:
+            print("Sample request failed")
+            return None    
+     
     def getChunk(self):
-        if self.stream:
-            try:
-                rawChunk = self.inlet.pull_chunk(self.streamTimeout, self.chunksize)
-                chunk = self.__mapChunkToDataFrame(rawChunk)
-                return chunk
-            except:
-                print("Chunk request failed")
-                traceback.print_exc()
-                return None 
-        else:
-            print("Stream not found")
-            return None
+        try:
+            rawChunk = self.inlet.pull_chunk(self.streamTimeout, self.chunksize)
+            chunk = self.__mapChunkToDataFrame(rawChunk)
+            return chunk
+        except:
+            print("Chunk request failed")
+            traceback.print_exc()
+            return None 
+        
 
     def start(self):
         while(self.notDead):

@@ -5,8 +5,7 @@ Description:        Backend component to be run in a thread to merge data
                     before being saved down or displayed in the front end
 TODO List:  
 
-Notes
-    
+Notes   
 '''
 
 #### LIBRARIES ####
@@ -14,12 +13,13 @@ Notes
 import pandas as pd
 import multiprocessing
 
-import time
+import time, sys
 # CUSTOM #
 
 # Global Vars
-NUM_SENSORS = 1
+NUM_SENSORS = 4
 NUM_FAILRX = 5
+SIZE_CHUNKOUT = 1000
 
 #### CLASSES ####
 class Aggregator():
@@ -32,7 +32,7 @@ class Aggregator():
         
         self.notDead = False
         
-        self.mergedRawData = pd.DataFrame()
+        self.mergedRawData = pd.DataFrame(data={"Time":[]})
         self.num_pullFailures = [0]*NUM_SENSORS #got tracking unmber of times a sensor has 
                                                 #been polled and failed to send data
 
@@ -52,9 +52,10 @@ class Aggregator():
             case _:
                 print("Unknown command: ", command)   
     
-    def __forwardMergedData(self):
+    def forwardMergedData(self):
         self.q_dataOut.put(self.mergedRawData)
-        self.mergedRawData.iloc[:0] #empty dataframe
+        #self.mergedRawData.iloc[:0] #empty dataframe
+        self.mergedRawData = pd.DataFrame(data={"Time":[]}) #empty dataframe
     
     #### MUGGLE METHODS #### 
     def getAndMerge(self):
@@ -78,13 +79,28 @@ class Aggregator():
                     self.__processCommand()
                     
                 self.getAndMerge()
-                self.__forwardMergedData()    
+                
+                if sys.getsizeof(self.mergedRawData) > SIZE_CHUNKOUT:
+                    self.forwardMergedData()    
                 
 
 #### VULGAR METHODS #### they have no class
 def make_thread_AggregateData(qs_data, q_metric, q_command, q_feedback):
-    aggr = Aggregator(qs_data, q_metric, q_command, q_feedback)  
+    aggr = Aggregator(qs_data, q_metric, q_command, q_feedback)
     aggr.start()
+    
+    '''
+    #TODO - delete this test code
+    time.sleep(2)
+    aggr.getAndMerge()
+    
+    print("AGGR: Size before: ", sys.getsizeof(aggr.mergedRawData))
+    print("AGGR: data to send: ", aggr.mergedRawData)
+    aggr.forwardMergedData()   
+    print("AGGR: Size after: ", sys.getsizeof(aggr.mergedRawData))
+    print("AGGR: data after sent: ", aggr.mergedRawData)
+    '''  
+    
     
 #### MAIN #### (just for testing independently of everything else)
 def main():
@@ -131,9 +147,36 @@ def main():
     #start running threads
     for thred in my_threads:
         thred.start()
-
+    
+    print("MAIN: Sensor threads made, sleeping for 20s")
+    time.sleep(20)
+    
+    print("MAIN: Checking for metric data...")
+    if not q_metric.empty():
+        mergedData = q_metric.get()
+        print("MAIN: Merged data rcd: ", mergedData)
+    else:
+        print("MAIN: No data for metrics")
+    
+    '''
+    print("Sensor threads made, sleeping for 10s")
+    time.sleep(10)
+    
+    if not q_metric.empty():
+        print("Chunk aggr: ", q_metric.get())
+    else:
+        print("No chunk to print")
+    
+    
+    
+    
+    for q_data in qs_data:
+        if not q_data.empty():
+            print("Data: ", q_data.get())
+        else:
+            print("Nothing in queue")
+    
     import keyboard
-    import time
     
     while True:
         readKey = keyboard.read_key()
@@ -155,9 +198,7 @@ def main():
                 for q in qs_simSensorCommand:
                     q.put("Stop")
             case "3": 
-                print("Sending message: Reconnect")
-                #q_commandIn.put("Reconnect")
-                
+                print("Sending message: Reconnect") #TODO
                 for q in qs_simSensorCommand:
                     q.put("Stream")
             case _:
@@ -166,7 +207,7 @@ def main():
         if not q_metric.empty():
             mergedData = q_metric.get()
             print("Merged data rcd: ", mergedData)
-
+    '''
     print("Aggregator: Ending Main")
 
 if __name__ == '__main__':
